@@ -14,8 +14,9 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
 ## Status (2026-11-01)
 
 - This is a **prototype** to show MEs what's possible.
-- It is **not a git repo yet**. Ask Chris before `git init`, before creating a GitHub repo, or
-  before adding it to the hub.
+- Repo: `chrismessick-dpd/partcheck` (public), created 2026-11-01. Pages serves it from `main`
+  once Chris turns Pages on. The hub links to it as a prototype.
+- Commit or push only when Chris asks.
 - Not built yet:
   - run storage in the private `review-me-*` repos;
   - Send to Signoff ME;
