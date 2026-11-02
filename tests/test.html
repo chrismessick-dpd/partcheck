@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Partcheck tests</title>
+<style>
+  body { font: 13px/1.5 system-ui, sans-serif; margin: 24px; }
+  .pass { color: #248a3d; } .fail { color: #d70015; font-weight: 600; }
+  pre { margin: 0 0 0 18px; color: #666; white-space: pre-wrap; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" integrity="sha384-RRHfJ6w1mTlKUBMYT/hvnRiOzEB/vyRV3DrQOseb6oYfvaZSfdd0byS4bHps0k2R" crossorigin="anonymous"></script>
+</head>
+<body>
+<h1>Partcheck tests</h1>
+<p>Open over http (the STEP reader runs in a worker). The last group reads the demo packages end to end, so it needs the network for OpenCascade and pdf.js.</p>
+<div id="out"></div>
+<script>
+  // Scripts resolve 'assets/…' relative to the page; the worker path in libs.js is relative too.
+  const base = document.createElement('base'); base.href = '../'; document.head.prepend(base);
+</script>
+<script src="assets/util.js"></script>
+<script src="assets/libs.js"></script>
+<script src="assets/materials.js"></script>
+<script src="assets/package.js"></script>
+<script src="assets/mesh.js"></script>
+<script src="assets/drawing.js"></script>
+<script src="assets/checks.js"></script>
+<script src="assets/analyze.js"></script>
+<script src="assets/viewer.js"></script>
+<script src="assets/export.js"></script>
+<script src="demo/demo-package.js"></script>
+<script>
+(async function () {
+  const out = document.getElementById('out');
+  const tests = [];
+  const test = (name, fn) => tests.push({ name, fn });
+  const eq = (a, b, msg) => { const A = JSON.stringify(a), B = JSON.stringify(b); if (A !== B) throw new Error((msg ? msg + ': ' : '') + 'expected ' + B + ', got ' + A); };
+  const ok = (v, msg) => { if (!v) throw new Error(msg || 'expected truthy'); };
+  const near = (a, b, tol, msg) => { if (!(Math.abs(a - b) <= tol)) throw new Error((msg ? msg + ': ' : '') + 'expected ' + b + ' ± ' + tol + ', got ' + a); };
+
+  // ── names ──
+  test('parseName: part number, rev, description', () => {
+    eq(PC.pkg.parseName('2100410-011_B_front-cover.step'), { pn: '2100410-011', rev: 'B', desc: 'front cover', base: '2100410-011_B_front-cover' });
+    eq(PC.pkg.parseName('pkg/BOM_2100410-001_B_enclosure.csv').pn, '2100410-001');
+    eq(PC.pkg.parseName('BRK-200 rev C bracket.pdf').rev, 'C');
+    eq(PC.pkg.parseName('housing.step').pn, null);
+    eq(PC.pkg.parseName('nist_ctc_02_asme1_ap242-e2.stp').pn, null, 'format and standard tags are not part numbers');
+  });
+  test('grouping: loose names pair by their longest shared prefix', async () => {
+    const f = n => ({ path: n, bytes: new TextEncoder().encode(n) });
+    const pkg = await PC.pkg.build('t', [f('nist_ctc_02_asme1_ap242-e2.stp'), f('nist_ctc_02_asme1_rc.pdf'), f('nist_ctc_04_asme1_ap242-e1.stp'), f('nist_ctc_04_asme1_rd.pdf')]);
+    eq(pkg.parts.map(p => p.files.map(x => x.name.slice(0, 11) + '.' + x.name.split('.').pop()).sort().join('+')), ['nist_ctc_02.pdf+nist_ctc_02.stp', 'nist_ctc_04.pdf+nist_ctc_04.stp']);
+  });
+  test('kindOf sorts files', () => {
+    eq(['a.STEP', 'b.igs', 'c.pdf', 'd.dxf', 'e.SLDPRT', 'f.stl', 'g.csv', 'h.bin'].map(n => PC.pkg.kindOf(n).kind), ['model', 'model', 'drawing', 'flat', 'native', 'mesh', 'bom', 'other']);
+  });
+
+  // ── STEP header ──
+  test('stepHeader: schema, units, product, revision', () => {
+    const h = PC.pkg.stepHeader("ISO-10303-21;\nHEADER;\nFILE_NAME('x.step','2026-01-01',('A. B'),('Org'),'pre','SolidWorks 2025','');\nFILE_SCHEMA(('AP242_MANAGED_MODEL_BASED_3D_ENGINEERING_MIM_LF { 1 0 10303 442 1 1 4 }'));\nENDSEC;DATA;\n#4=PRODUCT('BRK-200','Bracket','',(#3));\n#5=PRODUCT_DEFINITION_FORMATION('C','',#4);\n#9=(LENGTH_UNIT()NAMED_UNIT(*)SI_UNIT(.MILLI.,.METRE.));");
+    eq([h.ap, h.units, h.products[0].id, h.revision, h.system], ['AP242', 'mm', 'BRK-200', 'C', 'SolidWorks 2025']);
+    eq(PC.pkg.stepHeader("#1=PRODUCT_DEFINITION_FORMATION('','',#4);#2=(CONVERSION_BASED_UNIT('INCH',#3)LENGTH_UNIT()NAMED_UNIT(#4));").units, 'inch');
+    eq(PC.pkg.stepHeader("#1=PRODUCT_DEFINITION_FORMATION('','',#4);").revision, '');
+  });
+
+  // ── BOM ──
+  test('parseBom: columns by heading, purchased lines', () => {
+    const b = PC.pkg.parseBom('Item,Part Number,Rev,Description,Type,Material,Qty\r\n1,abc-1,b,"Cover, front",Molded,"PC/ABS, white",1\r\n2,SCR-4,,Screw,Purchased,Steel,4\r\n');
+    eq(b.rows.map(r => [r.pn, r.rev, r.desc, r.process]), [['ABC-1', 'B', 'Cover, front', 'molded'], ['SCR-4', '', 'Screw', 'purchased']]);
+    eq(PC.pkg.parseBom('a,b\n1,2'), null);
+  });
+
+  // ── materials ──
+  test('materials: match, density, same grade', () => {
+    eq(PC.materials.match('PC/ABS, SABIC CYCOLOY C1200HF').key, 'pcabs');
+    eq(PC.materials.match('STEEL, CR, SAE 1008, 1.2 MM').key, 'steel');
+    eq(PC.materials.match('ALUMINUM 6061-T6').key, 'al6061');
+    eq(PC.materials.match('PA66 GF30 black').key, 'pa66gf30');
+    eq(PC.materials.same('PC/ABS, Cycoloy C1200HF, white (CMF-01)', 'PC/ABS, SABIC CYCOLOY C1200HF, WHITE'), true);
+    eq(PC.materials.same('PC/ABS, Cycoloy C1200HF', 'PC/ABS, Bayblend T85 XF'), false);
+    eq(PC.materials.same('PC/ABS', 'ABS'), false);
+    eq(PC.materials.same('Unobtainium', 'ABS'), null);
+  });
+
+  // ── drawing text ──
+  const item = (s, x, y) => ({ s, x, y, w: s.length * 4, h: 8, page: 1 });
+  test('drawing.parse: labels with values below or to the right, revision table', () => {
+    const d = PC.drawing.parse([
+      item('PART NO.', 700, 150), item('BRK-200', 700, 135), item('REV', 900, 150), item('C', 900, 135),
+      item('MATERIAL', 700, 120), item('AL 6061-T6', 700, 105), item('FINISH:', 700, 90), item('CLEAR ANODIZE TYPE II', 740, 90),
+      item('DRAWN', 700, 60), item('A. B 2026-01-02', 700, 45), item('CHECKED', 800, 60), item('APPROVED', 900, 60),
+      item('REV', 700, 700), item('DESCRIPTION', 740, 700), item('A', 702, 686), item('B', 702, 672), item('C', 702, 658),
+      item('UNLESS OTHERWISE SPECIFIED: DIMENSIONS IN MM', 300, 40), item('THIRD ANGLE PROJECTION', 300, 30), item('PER ASME Y14.5-2018', 300, 20),
+    ]);
+    eq([d.fields.part.value, d.fields.rev.value, d.fields.material.value, d.fields.finish.value, d.fields.drawn.value, d.fields.checked.value],
+      ['BRK-200', 'C', 'AL 6061-T6', 'CLEAR ANODIZE TYPE II', 'A. B 2026-01-02', '']);
+    eq(d.revs, ['A', 'B', 'C']); eq(d.latestRev, 'C');
+    ok(d.tolerance && d.projection && d.standard && d.units, 'tolerance block, projection, standard, units');
+  });
+  test('revCmp and massGrams', () => {
+    eq(['B', 'AA', 'Z', 'A'].sort(PC.drawing.revCmp), ['A', 'B', 'Z', 'AA']);
+    eq(['10', '2', '1'].sort(PC.drawing.revCmp), ['1', '2', '10']);
+    near(PC.drawing.massGrams('0.25 kg'), 250, 1e-9); near(PC.drawing.massGrams('2 oz'), 56.699, 0.01); eq(PC.drawing.massGrams('n/a'), null);
+  });
+
+  // ── DXF ──
+  test('readDxf: demo flat pattern loops, holes, bends, revision', () => {
+    const f = PartcheckDemo.packages.find(p => p.id === 'bracket').files.find(f => f.path.endsWith('.dxf'));
+    const d = PC.drawing.readDxf(new TextDecoder().decode(PC.util.b64ToBytes(f.b64)));
+    eq([d.loops, d.holes, d.bends, d.openChains, d.rev], [6, 5, 2, 0, 'A']);
+    near(d.size[0], 70, 0.01); near(d.size[1], 122.6, 0.1);
+    ok(PC.drawing.dxfSvg(d).startsWith('<svg'), 'svg');
+  });
+
+  // ── mesh ──
+  function box(sx, sy, sz) {
+    const P = [[0, 0, 0], [sx, 0, 0], [sx, sy, 0], [0, sy, 0], [0, 0, sz], [sx, 0, sz], [sx, sy, sz], [0, sy, sz]];
+    const F = [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]];
+    const mesh = { pos: new Float32Array(P.flat()), nrm: new Float32Array(24), idx: new Uint32Array(F.flat()), body: new Uint16Array(12), bodies: 1, colors: [null] };
+    return mesh;
+  }
+  test('stats: box volume, area, centroid, closed, no holes', () => {
+    const s = PC.mesh.stats(box(10, 20, 2));
+    near(s.volume, 400, 1e-6); near(s.area, 2 * (200 + 20 + 40), 1e-6);
+    eq(s.centroid.map(v => +v.toFixed(6)), [5, 10, 1]); eq([s.closed, s.holes, s.shells], [true, 0, 1]);
+  });
+  test('stats: open mesh is not closed', () => {
+    const m = box(1, 1, 1); m.idx = m.idx.slice(0, 30);
+    const s = PC.mesh.stats(m);
+    eq([s.closed, s.openEdges > 0], [false, true]);
+  });
+  test('stats: a solid plus a stray open surface body', () => {
+    const a = box(10, 10, 10), b = box(5, 5, 5);
+    // second body: a box two triangles short (open), moved 50 mm along x
+    const pos = new Float32Array([...a.pos, ...Array.from(b.pos, (v, i) => v + (i % 3 === 0 ? 50 : 0))]);
+    const idx = new Uint32Array([...a.idx, ...Array.from(b.idx.slice(0, 30), v => v + 8)]);
+    const body = new Uint16Array(idx.length / 3); body.fill(1, 12);
+    const s = PC.mesh.stats({ pos, idx, body, bodies: 2, nrm: new Float32Array(pos.length), colors: [null, null] });
+    eq([s.solids, s.surfaces, s.closed], [1, 1, false]);
+    near(s.volume, 1000, 1e-6, 'volume counts the solid only');
+  });
+  test('drawing.parse: inline notes (material, rev) and units', () => {
+    const d = PC.drawing.parse([item('Rev D', 25, 69), item('5. MATERIAL: (.1195 THICK) 11 GA 304', 300, 324), item('SST SHT, ASTM A240.', 300, 314),
+      item('4. VALUES IN [XXX] ARE MILLIMETERS.', 300, 346), item('6. UNITS: INCHES', 300, 292)]);
+    eq([d.fields.rev.value, d.fields.material.value, d.units], ['D', '(.1195 THICK) 11 GA 304 SST SHT, ASTM A240', 'INCHES']);
+    eq(PC.materials.match(d.fields.material.value).key, 'ss');
+  });
+  test('isFlat: a plate is flat', () => {
+    const m = box(100, 50, 2);
+    ok(PC.mesh.isFlat(m, PC.mesh.bbox(m.pos)), 'plate');
+  });
+  test('draft: box walls have none for a Z pull', () => {
+    const d = PC.mesh.draft(box(10, 10, 10), [0, 0, 1], 1);
+    near(d.zeroArea, 400, 1e-6); near(d.wallArea, 400, 1e-6);
+  });
+  test('thickness: a 10 × 20 × 2 plate is 2 mm', async () => {
+    const t = await PC.mesh.thickness(box(10, 20, 2));
+    near(t.nominal, 2, 0.02);
+  });
+
+  // ── end to end on the demo ──
+  async function demo(id) {
+    const pk = PartcheckDemo.packages.find(p => p.id === id);
+    const pkg = await PC.pkg.build(pk.name, pk.files.map(f => ({ path: f.path, bytes: PC.util.b64ToBytes(f.b64) })));
+    await PC.analyze.analyze(pkg, () => {});
+    return pkg;
+  }
+  const fids = pkg => pkg.findings.map(f => f.part + ' ' + f.check + ' ' + f.sev).sort();
+  test('demo enclosure: parts, masses and the planted findings', async () => {
+    const pkg = await demo('enclosure');
+    eq(pkg.parts.map(p => p.label), ['2100410-011', '2100410-012', '2100410-031']);
+    eq(pkg.purchased.map(r => r.pn), ['9100022-004']);
+    const [fc, bc] = pkg.parts;
+    eq([fc.rev, fc.process, fc.material.match.key, fc.stats.closed, fc.stats.holes], ['B', 'molded', 'pcabs', true, 1]);
+    near(fc.mass, fc.drawingMass, 0.1, 'front cover mass vs drawing');
+    eq(fids(pkg), [
+      '2100410-011 dwg.signoff info',
+      '2100410-012 dwg.finish warn', '2100410-012 dwg.signoff info', '2100410-012 mat.match error', '2100410-012 rev.step info',
+      '2100410-031 files.bom error',
+    ]);
+  });
+  test('demo bracket: stale flat pattern found', async () => {
+    const pkg = await demo('bracket');
+    const p = pkg.parts[0];
+    eq([p.process, p.rev, p.stats.holes, p.flat.holes], ['sheet', 'B', 6, 5]);
+    eq(fids(pkg), ['2100410-020 dwg.signoff info', '2100410-020 rev.match error', '2100410-020 sm.flat error']);
+    const glb = new DataView(await PC.export.FORMATS.glb.make(p).arrayBuffer());
+    eq(glb.getUint32(0, true), 0x46546C67, 'GLB magic');
+    eq(PC.export.FORMATS.stl.make(p).size, 84 + p.stats.triangles * 50, 'STL size');
+  });
+
+  let pass = 0, fail = 0;
+  for (const t of tests) {
+    const row = document.createElement('div');
+    try { await t.fn(); pass++; row.className = 'pass'; row.textContent = '✓ ' + t.name; }
+    catch (e) { fail++; row.className = 'fail'; row.innerHTML = '✗ ' + t.name + '<pre>' + String(e && e.stack || e).replace(/</g, '&lt;') + '</pre>'; }
+    out.appendChild(row);
+  }
+  const sum = document.createElement('h2');
+  sum.textContent = pass + ' passed, ' + fail + ' failed';
+  out.prepend(sum);
+  document.title = (fail ? 'FAIL' : 'PASS') + ' ' + pass + '/' + tests.length;
+})().catch(e => { document.title = 'ERROR'; document.body.append(String(e && e.stack || e)); });
+</script>
+</body>
+</html>

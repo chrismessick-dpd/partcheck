@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- Scripts only from this site and the pinned libraries (each checked by its hash). The STEP reader (OpenCascade as
+     WebAssembly) runs in a same-origin worker, assets/occt-worker.js; connect-src covers pdf.js's worker and fonts. Nothing is uploaded. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>Partcheck · Mechanical package check</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23004952'/%3E%3Cpath d='M16 6.5 25 11.5v9L16 25.5 7 20.5v-9z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M7 11.5 16 16.5 25 11.5M16 16.5v9' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="assets/suite.css">
+<link rel="stylesheet" href="assets/styles.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" integrity="sha384-RRHfJ6w1mTlKUBMYT/hvnRiOzEB/vyRV3DrQOseb6oYfvaZSfdd0byS4bHps0k2R" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="demo-banner" class="demo-banner" hidden></div>
+<div class="app" id="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand" data-act="home" style="cursor:pointer" title="Home">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 20 20" fill="none" stroke="#fff" stroke-width="1.7" stroke-linejoin="round"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="brand-name">Partcheck</div>
+        <div class="brand-sub">Mechanical package check</div>
+      </div>
+    </div>
+    <div class="side-head">
+      <span class="side-label">Packages</span>
+      <button class="icon-btn" data-act="open" title="Open a package" aria-label="Open a package">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>
+      </button>
+    </div>
+    <nav class="side-list" id="pkg-list"></nav>
+    <button class="side-link" id="convert-link" data-act="convert" title="Turn STEP files into STL, OBJ, GLB or images">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11l-3-3M16 13H5l3 3"/></svg>
+      Convert
+    </button>
+    <div class="side-tools">
+      <div class="side-head"><span class="side-label">Dovetail Signoff</span></div>
+      <a class="side-link" href="../me_design_review/index.html" data-demo-href title="Open Signoff ME, the mechanical design review">
+        <span class="tool-mark"><svg viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"><circle cx="9" cy="9" r="3"/><path d="M9 1.5v3M9 13.5v3M1.5 9h3M13.5 9h3M3.7 3.7l2.1 2.1M12.2 12.2l2.1 2.1M3.7 14.3l2.1-2.1M12.2 5.8l2.1-2.1"/></svg></span>
+        <span>Signoff ME<small>Mechanical design review</small></span>
+      </a>
+      <a class="side-link" href="../pcb_dfm/index.html" data-demo-href title="Open Fabcheck, the PCB fab package check">
+        <span class="tool-mark"><svg viewBox="0 0 18 18" fill="none" stroke="#fff" stroke-width="1.6"><rect x="1.5" y="1.5" width="15" height="15" rx="2.5"/><circle cx="6" cy="6" r="1.4" fill="#fff" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="#fff" stroke="none"/></svg></span>
+        <span>Fabcheck<small>PCB fab package check</small></span>
+      </a>
+      <a class="side-link" href="../signoff/index.html" data-demo-href title="Back to Dovetail Signoff, all tools">
+        <span class="tool-mark"><svg viewBox="0 0 18 18" fill="#fff"><rect x="2" y="2" width="6" height="6" rx="1.5"/><rect x="10" y="2" width="6" height="6" rx="1.5"/><rect x="2" y="10" width="6" height="6" rx="1.5"/><rect x="10" y="10" width="6" height="6" rx="1.5"/></svg></span>
+        <span>All tools<small>Dovetail Signoff home</small></span>
+      </a>
+    </div>
+    <div class="side-foot">
+      <span class="pc-muted pc-version" id="version"></span>
+      <button class="icon-btn" id="theme-btn" data-act="theme" title="Dark mode" aria-label="Toggle dark mode"></button>
+    </div>
+  </aside>
+  <main class="main" id="main">
+    <header class="toolbar" id="toolbar">
+      <div class="toolbar-center"><div class="seg" id="view-seg" role="tablist" hidden></div></div>
+    </header>
+    <div id="view"></div>
+  </main>
+</div>
+<div class="pc-dropzone" aria-hidden="true"><div>Drop to open</div></div>
+<div class="toasts" id="toasts"></div>
+<input type="file" id="file-input" multiple hidden accept=".step,.stp,.p21,.iges,.igs,.brep,.stl,.pdf,.dxf,.csv,.zip,.sldprt,.sldasm,.slddrw,.x_t">
+<input type="file" id="dir-input" webkitdirectory multiple hidden>
+<script src="assets/version.js"></script>
+<script src="assets/util.js"></script>
+<script src="assets/libs.js"></script>
+<script src="assets/materials.js"></script>
+<script src="assets/package.js"></script>
+<script src="assets/mesh.js"></script>
+<script src="assets/drawing.js"></script>
+<script src="assets/checks.js"></script>
+<script src="assets/analyze.js"></script>
+<script src="assets/viewer.js"></script>
+<script src="assets/export.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
