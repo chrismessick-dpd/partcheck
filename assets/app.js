@@ -208,7 +208,7 @@
   const sevDot = sev => `<span class="pc-sev pc-sev-${sev}" title="${SEV[sev]}"></span>`;
   // An overview stat card that opens Findings filtered to its severity (a plain card when there are none).
   function statLink(n, sev, cls, inner) {
-    const label = sev === 'error' ? 'errors' : 'warnings';
+    const label = sev === 'error' ? 'errors' : sev === 'warn' ? 'warnings' : 'notes';
     return n ? `<button class="${cls} stat-link" data-act="findings" data-f="${sev}" title="Show the ${label} in Findings">${inner}</button>` : `<div class="${cls}">${inner}</div>`;
   }
   function counts(pkg, key) {
@@ -229,7 +229,7 @@
         <div class="card stat"><div class="stat-num">${parts.filter(p => p.mesh).length}</div><div class="stat-label">Parts with a model</div></div>
         ${statLink(e, 'error', `card stat ${e ? 'issue' : 'pass'}`, `<div class="stat-num">${e}</div><div class="stat-label">Errors</div>`)}
         ${statLink(w, 'warn', 'card stat', `<div class="stat-num" style="color:${w ? 'var(--warn)' : ''}">${w}</div><div class="stat-label">Warnings</div>`)}
-        <div class="card stat"><div class="stat-num">${i}</div><div class="stat-label">Notes</div></div>
+        ${statLink(i, 'info', 'card stat', `<div class="stat-num">${i}</div><div class="stat-label">Notes</div>`)}
       </div>
       <h2 class="section-title">Parts</h2>
       <div class="pc-parts">${parts.map(p => partCard(pkg, p)).join('')}</div>
