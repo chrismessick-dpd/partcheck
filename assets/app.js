@@ -265,7 +265,7 @@
   function relatedChips(pkg, ids) {
     const rev = pkg && pkg.demoId && DEMO_REVIEW[pkg.demoId];
     return `<span class="pc-related">${ids.map(id => rev
-      ? `<a class="chip accent" href="${ME}?demo&project=${rev}&item=${encodeURIComponent(id)}" target="dovetail-signoff-me" title="Open this check in Signoff ME's demo review">${esc(id)}</a>`
+      ? `<a class="chip accent" href="${ME}?demo&project=${rev}&item=${encodeURIComponent(id)}" title="Open this check in Signoff ME's demo review">${esc(id)}</a>`
       : `<span class="chip">${esc(id)}</span>`).join('')}</span>`;
   }
 

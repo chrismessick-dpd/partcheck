@@ -15,7 +15,7 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
 
 - This is a **prototype** to show MEs what's possible.
 - Repo: `chrismessick-dpd/partcheck` (public), created 2026-11-01. Pages serves it from `main`
-  once Chris turns Pages on. The hub links to it as a prototype.
+  (on since 2026-11-02). The hub links to it as a prototype.
 - Commit or push only when Chris asks.
 - Not built yet:
   - run storage in the private `review-me-*` repos;
