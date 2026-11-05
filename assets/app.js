@@ -206,6 +206,11 @@
   }
 
   const sevDot = sev => `<span class="pc-sev pc-sev-${sev}" title="${SEV[sev]}"></span>`;
+  // An overview stat card that opens Findings filtered to its severity (a plain card when there are none).
+  function statLink(n, sev, cls, inner) {
+    const label = sev === 'error' ? 'errors' : 'warnings';
+    return n ? `<button class="${cls} stat-link" data-act="findings" data-f="${sev}" title="Show the ${label} in Findings">${inner}</button>` : `<div class="${cls}">${inner}</div>`;
+  }
   function counts(pkg, key) {
     const f = pkg.findings.filter(x => key == null || x.part === key);
     return ['error', 'warn', 'info'].map(s => [s, f.filter(x => x.sev === s).length]);
@@ -222,8 +227,8 @@
       </div></div>
       <div class="grid grid-4">
         <div class="card stat"><div class="stat-num">${parts.filter(p => p.mesh).length}</div><div class="stat-label">Parts with a model</div></div>
-        <div class="card stat ${e ? 'issue' : 'pass'}"><div class="stat-num">${e}</div><div class="stat-label">Errors</div></div>
-        <div class="card stat"><div class="stat-num" style="color:${w ? 'var(--warn)' : ''}">${w}</div><div class="stat-label">Warnings</div></div>
+        ${statLink(e, 'error', `card stat ${e ? 'issue' : 'pass'}`, `<div class="stat-num">${e}</div><div class="stat-label">Errors</div>`)}
+        ${statLink(w, 'warn', 'card stat', `<div class="stat-num" style="color:${w ? 'var(--warn)' : ''}">${w}</div><div class="stat-label">Warnings</div>`)}
         <div class="card stat"><div class="stat-num">${i}</div><div class="stat-label">Notes</div></div>
       </div>
       <h2 class="section-title">Parts</h2>
@@ -488,6 +493,7 @@
       case 'view': state.view = el.dataset.view; renderAll(); break;
       case 'convert': state.view = 'convert'; renderAll(); break;
       case 'filter': state.filter = el.dataset.f; renderAll(); break;
+      case 'findings': state.filter = el.dataset.f; state.view = 'findings'; renderAll(); break;
       case 'theme': { const t = isDark(readTheme()) ? 'light' : 'dark'; writeTheme(t); applyTheme(t); break; }
       case 'cam': if (viewer) viewer.view(el.dataset.v); break;
       case 'mode': {
