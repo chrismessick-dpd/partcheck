@@ -31,6 +31,28 @@
   }
   if (darkQuery && darkQuery.addEventListener) darkQuery.addEventListener('change', () => applyTheme(readTheme()));
 
+  // ── Sidebar ──
+  // As in Signoff EE and Fabcheck: on wide windows the corner button, the toolbar's menu button or
+  // [ hides it until opened again (kept in this browser); on narrow ones it slides over the page,
+  // and a tap outside it (on its scrim, suite.css) closes it and goes no further.
+  const SIDE_KEY = (DEMO ? 'partcheck.demo.' : 'partcheck.v1.') + 'sideCollapsed';
+  const narrow = window.matchMedia ? matchMedia('(max-width: 860px)') : { matches: false };
+  function toggleSidebar() {
+    if (narrow.matches) { $('#app').classList.toggle('nav-open'); return; }
+    const on = !$('#app').classList.contains('side-collapsed');
+    $('#app').classList.toggle('side-collapsed', on);
+    try { localStorage.setItem(SIDE_KEY, on ? '1' : '0'); } catch (e) { /* storage blocked */ }
+  }
+  document.addEventListener('click', e => {
+    const app = $('#app');
+    if (!app.classList.contains('nav-open') || e.target !== app) return; // the scrim is #app's ::after
+    app.classList.remove('nav-open'); e.preventDefault(); e.stopPropagation();
+  }, true);
+  document.addEventListener('keydown', e => {
+    if (e.key !== '[' || e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable]')) return;
+    e.preventDefault(); toggleSidebar();
+  });
+
   const ICON = {
     sun: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="10" cy="10" r="3.4"/><path d="M10 2.5v1.8M10 15.7v1.8M2.5 10h1.8M15.7 10h1.8M4.7 4.7l1.3 1.3M14 14l1.3 1.3M4.7 15.3 6 14M14 6l1.3-1.3"/></svg>',
     moon: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M16 12.3A6.5 6.5 0 0 1 7.7 4a6.5 6.5 0 1 0 8.3 8.3z"/></svg>',
@@ -482,11 +504,14 @@
     const el = e.target.closest('[data-act]');
     if (!el) return;
     const act = el.dataset.act, pkg = active();
+    // Picking something in the open menu on a narrow window closes it.
+    if (el.closest('#sidebar') && /^(home|pkg|part|convert|open|open-dir)$/.test(act)) $('#app').classList.remove('nav-open');
     switch (act) {
       case 'open': fileTarget = 'pkg'; e.stopPropagation(); fileInput().click(); break;
       case 'open-dir': fileTarget = 'pkg'; e.stopPropagation(); dirInput().click(); break;
       case 'open-conv': fileTarget = 'conv'; e.stopPropagation(); fileInput().click(); break;
       case 'demo': loadDemo(); break;
+      case 'nav': toggleSidebar(); break;
       case 'home': state.view = state.pkgs.length ? 'overview' : 'home'; if (!state.pkgs.length) state.active = null; renderAll(); break;
       case 'pkg': state.active = el.dataset.id; state.view = 'overview'; renderAll(); break;
       case 'part': state.part = el.dataset.key; state.view = 'part'; renderAll(); break;
@@ -611,6 +636,14 @@
 
   // ── Start ──
   applyTheme(readTheme());
+  // Start with the sidebar as it was left, without playing the slide. Applied on narrow windows
+  // too (suite.css only hides it above 860 px), so widening the window later shows it as it was left.
+  try {
+    if (localStorage.getItem(SIDE_KEY) === '1') {
+      const app = $('#app');
+      app.style.transition = 'none'; app.classList.add('side-collapsed'); void app.offsetWidth; app.style.transition = '';
+    }
+  } catch (e) { /* storage blocked */ }
   if (DEMO) {
     const b = $('#demo-banner');
     b.hidden = false; document.body.classList.add('has-banner');

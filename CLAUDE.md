@@ -24,6 +24,8 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
 
   The design for those is in `../me_fabcheck_exploration/report.md` §3–4 and
   `docs/preview-format.md`.
+- The sidebar hides as in Signoff EE (2026-11-07): the corner button, the toolbar's ☰ or `[`, kept in
+  `partcheck.v1.sideCollapsed`; on phones it is a drawer with a scrim.
 - Chris noted that real geometry DFM needs Python. He wants ME input before the checks go further.
 
 ## Rules
