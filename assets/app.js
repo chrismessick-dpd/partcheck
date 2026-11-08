@@ -248,7 +248,7 @@
         <div class="eyebrow">Package${pkg.demoId ? ' · demo' : ''}</div>
         <h1 class="page-title">${esc(pkg.name)}</h1>
         <div class="page-sub"><span>${parts.length} part${parts.length === 1 ? '' : 's'}</span><span class="sep">·</span><span>${pkg.files.length} files, ${U.fmtBytes(pkg.files.reduce((s, f) => s + f.size, 0))}</span><span class="sep">·</span><span class="pc-mono" title="SHA-256 of the package: every file's path and hash">${pkg.sha256.slice(0, 12)}</span></div>
-      </div></div>
+      </div>${PC.send && PC.send.sendable(pkg).length ? `<div class="pc-head-acts"><button class="btn btn-primary" data-act="send" title="Store each part's pictures and 3D model with its Signoff ME review, for Signoff ME and Signoff PL">Send to Signoff ME…</button></div>` : ''}</div>
       <div class="grid grid-4">
         <div class="card stat"><div class="stat-num">${parts.filter(p => p.mesh).length}</div><div class="stat-label">Parts with a model</div></div>
         ${statLink(e, 'error', `card stat ${e ? 'issue' : 'pass'}`, `<div class="stat-num">${e}</div><div class="stat-label">Errors</div>`)}
@@ -449,7 +449,7 @@
       <div class="page-head"><div class="page-head-text"><div class="eyebrow">Previews & export</div><h1 class="page-title">${esc(pkg.name)}</h1>
       <div class="page-sub">What Signoff PL would show next to each part, and mesh files for anyone without CAD.</div></div></div>
       <h2 class="section-title">Preview pack <span class="pc-title-actions"><button class="btn btn-primary" data-act="pack">${ICON.download}Download preview pack</button><button class="btn" data-act="run-json">${ICON.download}Run record (JSON)</button></span></h2>
-      <p class="pc-muted pc-narrow">Per part: a 320 × 240 thumbnail, a four-view sheet and a small JSON (mass, size, material, findings), plus an <span class="pc-mono">index.json</span> naming the hero part. In the full design these go to the part's private repo next to the run, under <span class="pc-mono">partcheck/&lt;review&gt;/preview/</span>, for Signoff PL to read. This prototype only downloads them.</p>
+      <p class="pc-muted pc-narrow">Per part: a 320 × 240 thumbnail, a four-view sheet and a small JSON (mass, size, material, findings), plus an <span class="pc-mono">index.json</span> naming the hero part. To store pictures and a 3D model of each part with its Signoff ME review, for Signoff ME and Signoff PL, use <button class="btn-plain btn" data-act="send">Send to Signoff ME…</button></p>
       <div class="pc-previews">${parts.map(p => `<label class="card pc-preview${pkg.hero === p.key ? ' on' : ''}">
         <img src="${p.thumb}" alt=""><div><input type="radio" name="hero" data-act="hero-pick" data-key="${esc(p.key)}"${pkg.hero === p.key ? ' checked' : ''}> <b class="pc-mono">${esc(p.label)}</b> ${esc(p.name || '')}
         <div class="pc-muted">${U.fmtMass(p.mass)} · ${p.stats.bbox.size.map(v => v.toFixed(0)).join(' × ')} mm</div></div></label>`).join('')}</div>
@@ -459,6 +459,112 @@
       </tbody></table>
       <div class="pc-foot">${Object.values(PC.export.FORMATS).map(f => `<b>${f.label}</b>: ${esc(f.what)}`).join(' ')}</div></div>
     </div>`;
+  }
+
+  // ── Send to Signoff ME (assets/send.js, docs/send-to-signoff-me.md) ──
+  function closeSheet() { const w = $('#pc-sheet'); if (w) w.remove(); }
+  function sheet(html) {
+    closeSheet();
+    const wrap = document.createElement('div');
+    wrap.className = 'sheet-wrap'; wrap.id = 'pc-sheet';
+    wrap.innerHTML = '<div class="sheet wide" role="dialog" aria-modal="true">' + html + '</div>';
+    wrap.addEventListener('mousedown', e => { if (e.target === wrap && !(send && send.busy)) closeSheet(); });
+    document.body.appendChild(wrap);
+    return wrap;
+  }
+  let send = null;   // { pkg, review, keys: Set of part keys, hero, busy, blocked }
+  function openSend(pkg) {
+    if (!pkg || !PC.send) return;
+    const S = PC.send, parts = S.sendable(pkg), hero = S.defaultHero(pkg);
+    send = { pkg, review: S.suggest(pkg), keys: new Set(parts.map(p => p.key)), hero: hero && hero.key };
+    drawSend();
+  }
+  function drawSend(msg) {
+    const S = PC.send, pkg = send.pkg, list = S.reviews(), parts = S.sendable(pkg), names = S.keysFor(parts);
+    const unread = pkg.parts.filter(p => !parts.includes(p)), cap = window.Signoff.model3d.MAX_TRIS;
+    const tris = p => p.plMesh.idx.length / 3;
+    const w = sheet(`<div class="sheet-head"><h2>Send to Signoff ME</h2>
+      <p>Stores each part's pictures and a simplified 3D model with its Signoff ME review. Signoff ME shows the main part beside its progress ring; Signoff PL shows each part on its tiles and in 3D. Nothing else in the review changes.</p></div>
+      <div class="sheet-body">
+        <div class="field"><label for="sd-review">Signoff ME review</label><select class="input" id="sd-review">
+          <option value="">Choose a review…</option>${list.map(r => `<option value="${esc(r.id)}"${r.id === send.review ? ' selected' : ''}>${esc(r.name)}${r.number ? ' · ' + esc(r.number) : ''}</option>`).join('')}</select>
+          <p class="note" id="sd-where">${list.length ? '' : 'No Signoff ME reviews in this browser yet. Open Signoff ME and sync first.'}</p></div>
+        <div class="field"><span class="field-label">Parts</span><div class="card"><table class="pc-table"><thead><tr><th>Send</th><th>Main</th><th>Part</th><th>Model</th><th>Mass</th></tr></thead><tbody>
+          ${parts.map(p => `<tr><td><input type="checkbox" data-sd-part="${esc(p.key)}"${send.keys.has(p.key) ? ' checked' : ''} aria-label="Send ${esc(p.label)}"></td>
+            <td><input type="radio" name="sd-hero" data-sd-hero="${esc(p.key)}"${send.hero === p.key ? ' checked' : ''} aria-label="${esc(p.label)} is the review's main picture"></td>
+            <td><b class="pc-mono">${esc(p.label)}</b> ${esc(p.name || '')}</td>
+            <td>${tris(p) > cap ? tris(p).toLocaleString() + ' triangles, simplified to ' + cap.toLocaleString() : tris(p).toLocaleString() + ' triangles'}</td>
+            <td>${U.fmtMass(p.drawingMass != null ? p.drawingMass : p.mass)}</td></tr>`).join('')}
+          ${unread.map(p => `<tr class="pc-muted"><td></td><td></td><td><b class="pc-mono">${esc(p.label)}</b> ${esc(p.name || '')}</td><td colspan="2">No model read, so nothing to send</td></tr>`).join('')}
+          </tbody></table></div>
+          <p class="note">Main: the part Signoff ME's overview shows, and the picture Signoff PL shows for the review as a whole. Each Signoff PL Part shows the part with its own part number. Parts stored earlier and not sent now stay as they are.</p></div>
+        <div id="sd-signin"></div>
+        ${msg ? `<p class="note" style="color:var(--issue)">${esc(msg)}</p>` : ''}
+      </div>
+      <div class="sheet-foot"><span class="pc-muted">About 10–450 kB per part: four pictures and the model. Unchanged parts upload nothing.</span><span class="spacer"></span>
+        <button class="btn" data-act="send-close">Cancel</button><button class="btn btn-primary" data-act="send-go" id="sd-go">${PC.DEMO ? 'Show what it would store' : 'Send'}</button></div>`);
+    w.addEventListener('change', e => {
+      const t = e.target;
+      if (t.id === 'sd-review') { send.review = t.value; whereLine(); }
+      if (t.dataset.sdPart) { if (t.checked) send.keys.add(t.dataset.sdPart); else send.keys.delete(t.dataset.sdPart); goState(); }
+      if (t.dataset.sdHero) send.hero = t.dataset.sdHero;
+    });
+    whereLine();
+  }
+  function goState() {
+    const b = $('#sd-go');
+    if (b && send) b.disabled = !send.review || !send.keys.size || !!send.busy || !!send.blocked;
+  }
+  async function whereLine() {
+    if (!send) return;
+    const S = PC.send, el = $('#sd-where'), box = $('#sd-signin'), review = send.review;
+    send.blocked = false;
+    if (box) box.innerHTML = '';
+    if (!review) { if (el && S.reviews().length) el.textContent = ''; goState(); return; }
+    const h = S.home(review);
+    if (el) el.textContent = 'Stored in ' + h.repo + ', ' + h.dir;
+    goState();
+    const r = await S.probe(review);
+    if (!send || send.review !== review) return;
+    if (r.demo) { if (el) el.textContent = 'Would be stored in ' + h.repo + ', ' + h.dir + '. The demo doesn’t write to GitHub.'; }
+    else if (r.signIn && box) {
+      send.blocked = true;
+      box.innerHTML = `<div class="field"><label for="sd-token">GitHub token</label><input class="input" id="sd-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…">
+        <label class="check" style="margin-top:6px"><input type="checkbox" id="sd-remember"> Remember in this browser</label>
+        <p class="note">The same token as Signoff ME: fine-grained, with access to your Signoff repositories and Contents set to read and write. It stays in this browser and is sent only to GitHub.</p>
+        <button class="btn" type="button" id="sd-signin-btn">Sign in</button></div>`;
+      $('#sd-signin-btn').onclick = async () => {
+        try { await S.signIn($('#sd-token').value, $('#sd-remember').checked); whereLine(); }
+        catch (err) { toast(err.status === 401 ? 'GitHub didn’t accept that token (mistyped, expired or revoked?).' : 'Couldn’t sign in: ' + (err.message || err), 'error'); }
+      };
+    } else if (!r.ok) { send.blocked = true; if (el) el.textContent = 'Can’t store it there: ' + r.text + '.'; }
+    goState();
+  }
+  async function sendGo(pkg) {
+    if (!send || send.busy || !send.review || !send.keys.size || send.blocked) return;
+    const S = PC.send, keys = [...send.keys], review = send.review;
+    send.busy = true; goState();
+    if (PC.DEMO) {
+      const built = await S.build(pkg, { keys, hero: send.hero });
+      const h = S.home(review);
+      sheet(`<div class="sheet-head"><h2>What a Send would store</h2><p>In ${esc(h.repo)}, ${esc(h.dir)}, in one commit. The demo doesn’t write to GitHub; Signoff ME’s and Signoff PL’s demos show these same files.</p></div>
+        <div class="sheet-body"><div class="card"><table class="pc-table"><tbody>${built.files.map(f => `<tr><td class="pc-mono">${esc(f.name)}</td><td>${U.fmtBytes(f.bytes ? f.bytes.length : f.text.length)}</td></tr>`).join('')}</tbody></table></div></div>
+        <div class="sheet-foot"><a class="btn" href="../signoff_pl/index.html?demo">Open Signoff PL</a><a class="btn" href="${ME}?demo&amp;project=${encodeURIComponent(review)}">Open the review in Signoff ME</a><button class="btn btn-primary" data-act="send-close">Done</button></div>`);
+      send = null;
+      return;
+    }
+    const w = sheet(`<div class="busy"><div class="busy-row"><div class="busy-spin"></div><div><div class="busy-title">Sending to Signoff ME</div><div class="busy-step" id="sd-step">Starting…</div></div></div><div class="busy-bar"><i id="sd-bar"></i></div></div>`);
+    const res = await S.store(pkg, review, { keys, hero: send.hero, progress: (t, f) => {
+      const st = $('#sd-step'), bar = $('#sd-bar');
+      if (st) st.textContent = t;
+      if (bar && f != null) bar.style.width = Math.round(f * 100) + '%';
+    } });
+    if (!w.isConnected) { toast(res.ok ? 'Sent to Signoff ME' : 'Not sent: ' + res.why, res.ok ? '' : 'error'); send = null; return; }
+    if (!res.ok) { send.busy = false; drawSend('Not sent: ' + res.why + '.'); return; }
+    const n = res.index.parts.length, r = res.res;
+    sheet(`<div class="sheet-head"><h2>Sent to Signoff ME</h2><p>${n} part${n === 1 ? '' : 's'} in ${esc(res.repo)}: ${r.pushed ? r.pushed + ' file change' + (r.pushed === 1 ? '' : 's') + ', ' + r.skipped + ' file' + (r.skipped === 1 ? '' : 's') + ' already there' : 'everything was already there'}${r.commitUrl ? ` · <a href="${esc(r.commitUrl)}" target="_blank" rel="noopener">commit</a>` : ''}. Signoff PL shows them after its next refresh.</p></div>
+      <div class="sheet-foot"><a class="btn" href="../signoff_pl/index.html">Open Signoff PL</a><a class="btn" href="${ME}?project=${encodeURIComponent(review)}">Open the review in Signoff ME</a><button class="btn btn-primary" data-act="send-close">Done</button></div>`);
+    send = null;
   }
 
   // ── Convert page ──
@@ -537,6 +643,9 @@
       }
       case 'hero-pick': pkg.hero = el.dataset.key; document.querySelectorAll('.pc-preview').forEach(c => c.classList.toggle('on', c.contains(el))); break;
       case 'export-part': exportPart(el.dataset.key ? partOf(pkg, el.dataset.key) : partOf(pkg, state.part), el.dataset.fmt); break;
+      case 'send': openSend(pkg); break;
+      case 'send-go': sendGo(pkg); break;
+      case 'send-close': closeSheet(); break;
       case 'pack': U.download(await PC.export.previewPack(pkg, pkg.hero), PC.export.safe(pkg.name.replace(/\.zip$/i, '')) + '_preview.zip'); break;
       case 'run-json': U.download(new Blob([JSON.stringify(PC.export.runRecord(pkg), null, 2)], { type: 'application/json' }), PC.export.safe(pkg.name.replace(/\.zip$/i, '')) + '_partcheck-run.json'); break;
       case 'open-pdf': {

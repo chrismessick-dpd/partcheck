@@ -1,6 +1,8 @@
 # Preview format (`signoff-preview/1`)
 
-**Status: proposal (2026-11-01).** Partcheck writes this format into the zip that **Download
+**Status: superseded (2026-11-08) by `send-to-signoff-me.md`**, which extends the `v: 1` index that Fabcheck already stores and Signoff PL reads. Partcheck's *Download preview pack* still writes this older shape.
+
+**Was: proposal (2026-11-01).** Partcheck writes this format into the zip that **Download
 preview pack** gives you. Nothing stores it in a repo yet, and Signoff PL doesn't read it yet.
 
 The format is meant to be shared with Fabcheck's board previews, so PL needs only one reader. If

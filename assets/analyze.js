@@ -10,13 +10,19 @@
   // Tessellation fine enough for a smooth preview, coarse enough to stay quick on big parts.
   const TESS = { linearUnit: 'millimeter', linearDeflectionType: 'bounding_box_ratio', linearDeflection: 0.0015, angularDeflection: 0.35 };
 
+  // plMesh: the same model in Signoff PL's mesh shape (assets/vendor/model3d.js: a color and a CAD face
+  // per triangle), for Send to Signoff ME. An STL has no faces or colors.
+  const plMesh = res => window.Signoff && window.Signoff.model3d ? window.Signoff.model3d.fromOcct(res) : null;
   async function readModel(f) {
-    if (f.kind === 'mesh') return { mesh: PC.mesh.fromStl(f.bytes), header: null };
+    if (f.kind === 'mesh') {
+      const mesh = PC.mesh.fromStl(f.bytes);
+      return { mesh, header: null, plMesh: plMesh({ meshes: [{ attributes: { position: { array: mesh.pos } }, index: { array: mesh.idx }, color: null, brep_faces: [] }] }) };
+    }
     const kind = /\.(iges|igs)$/i.test(f.name) ? 'iges' : /\.brep$/i.test(f.name) ? 'brep' : 'step';
     const header = kind === 'step' ? PC.pkg.stepHeader(new TextDecoder().decode(f.bytes)) : null;
     const res = await PC.libs.readCad(kind, f.bytes, TESS);
     if (!res || !res.success || !res.meshes.length) throw new Error('OpenCascade could not read any solid from ' + f.name);
-    return { mesh: PC.mesh.fromOcct(res), header, ms: res.ms, tree: res.root };
+    return { mesh: PC.mesh.fromOcct(res), plMesh: plMesh(res), header, ms: res.ms, tree: res.root };
   }
 
   async function analyzePart(p, log) {
@@ -28,7 +34,7 @@
       log('Reading ' + p.model.name);
       try {
         const r = await readModel(p.model);
-        Object.assign(p, { mesh: r.mesh, header: r.header, readMs: r.ms });
+        Object.assign(p, { mesh: r.mesh, plMesh: r.plMesh, header: r.header, readMs: r.ms });
         p.stats = PC.mesh.stats(r.mesh);
       } catch (e) { p.modelError = e.message || String(e); }
     }

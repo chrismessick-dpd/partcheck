@@ -3,8 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <!-- Scripts only from this site and the pinned libraries (each checked by its hash). The STEP reader (OpenCascade as
-     WebAssembly) runs in a same-origin worker, assets/occt-worker.js; connect-src covers pdf.js's worker and fonts. Nothing is uploaded. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
+     WebAssembly) runs in a same-origin worker, assets/occt-worker.js; connect-src covers pdf.js's worker and fonts. Nothing is uploaded, except
+     what Send to Signoff ME stores in the review's own GitHub repository (api.github.com, assets/send.js). -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; worker-src 'self' blob:; connect-src 'self' https://cdn.jsdelivr.net https://api.github.com; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
 <title>Partcheck · Mechanical package check</title>
@@ -83,9 +84,13 @@
 <script src="assets/mesh.js"></script>
 <script src="assets/drawing.js"></script>
 <script src="assets/checks.js"></script>
+<script src="assets/vendor/model.js"></script>
+<script src="assets/vendor/github.js"></script>
+<script src="assets/vendor/model3d.js"></script>
 <script src="assets/analyze.js"></script>
 <script src="assets/viewer.js"></script>
 <script src="assets/export.js"></script>
+<script src="assets/send.js"></script>
 <script src="assets/app.js"></script>
 <!-- Demo tour: signoff/assets/tour.js does nothing outside ?demo, or before the hub starts the tour. -->
 <script src="../signoff/assets/tour.js"></script>

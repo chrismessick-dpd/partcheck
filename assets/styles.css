@@ -43,6 +43,7 @@ body.pc-dragging .pc-dropzone { display: grid; }
 .pc-dropzone div { background: var(--bg-elev); padding: 18px 28px; border-radius: var(--radius); box-shadow: var(--shadow-lg); font: 600 17px var(--display); }
 
 /* Busy */
+.pc-head-acts { display: flex; gap: 8px; flex: none; }
 .pc-busy { display: flex; gap: 16px; align-items: flex-start; padding: 18px; margin-top: 14px; }
 .pc-busy pre { margin: 0; font: 12px/1.6 var(--mono); color: var(--text-2); white-space: pre-wrap; }
 .pc-spin { width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid var(--accent-soft); border-top-color: var(--accent); animation: pc-spin 0.8s linear infinite; flex: none; }

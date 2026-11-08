@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Partcheck: Signoff demo files</title>
+<script>
+  // Scripts resolve 'assets/…' relative to Partcheck's root; the worker path in libs.js is relative too.
+  const base = document.createElement('base'); base.href = '../'; document.head.prepend(base);
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" integrity="sha384-+mbV2IY1Zk/X1p/nWllGySJSUN8uMs+gUAN10Or95UBH0fpj6GfKgPmgC5EXieXG" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js" integrity="sha384-RRHfJ6w1mTlKUBMYT/hvnRiOzEB/vyRV3DrQOseb6oYfvaZSfdd0byS4bHps0k2R" crossorigin="anonymous"></script>
+<style>body { font: 14px/1.5 system-ui, sans-serif; margin: 32px; max-width: 760px; } pre { font-size: 12px; }</style>
+</head>
+<body>
+<h1>Signoff demo files from Partcheck's Send</h1>
+<p>Runs Send to Signoff ME on Partcheck's two demo packages, as <code>assets/send.js</code> builds it, and
+gives the files Signoff PL's and Signoff ME's demos show. Serve the tools folder over http, then unzip the
+download into the tools folder (its paths start at <code>signoff_pl/</code> and <code>me_design_review/</code>).
+Partcheck's tests fail while Signoff PL's copy is stale. Then stamp Signoff PL and Signoff ME.</p>
+<p id="state">Reading the demo packages…</p>
+<button id="dl" disabled>Download the files (zip)</button>
+<pre id="list"></pre>
+<script src="assets/util.js"></script>
+<script src="assets/libs.js"></script>
+<script src="assets/materials.js"></script>
+<script src="assets/package.js"></script>
+<script src="assets/mesh.js"></script>
+<script src="assets/drawing.js"></script>
+<script src="assets/checks.js"></script>
+<script src="assets/vendor/model.js"></script>
+<script src="assets/vendor/github.js"></script>
+<script src="assets/vendor/model3d.js"></script>
+<script src="assets/analyze.js"></script>
+<script src="assets/send.js"></script>
+<script src="demo/demo-package.js"></script>
+<script>
+(async function () {
+  const pkgs = [];
+  for (const pk of PartcheckDemo.packages) {
+    const pkg = await PC.pkg.build(pk.name, pk.files.map(f => ({ path: f.path, bytes: PC.util.b64ToBytes(f.b64) })));
+    pkg.demoId = pk.id;
+    await PC.analyze.analyze(pkg, () => {});
+    pkgs.push(pkg);
+  }
+  const bundle = window.bundle = await PC.send.demoBundle(pkgs);
+  document.getElementById('list').textContent = Object.keys(bundle.files).map(p => p + '  ' + bundle.files[p].length + ' B').join('\n');
+  document.getElementById('state').textContent = 'Ready: ' + Object.keys(bundle.files).length + ' files.';
+  const btn = document.getElementById('dl');
+  btn.disabled = false;
+  btn.onclick = async () => {
+    const z = new JSZip();
+    Object.keys(bundle.files).forEach(p => z.file(p, bundle.files[p]));
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(await z.generateAsync({ type: 'blob' }));
+    a.download = 'partcheck-demo-files.zip';
+    a.click();
+  };
+  document.title = 'READY';
+})().catch(e => { document.getElementById('state').textContent = 'Error: ' + (e.stack || e); document.title = 'ERROR'; });
+</script>
+</body>
+</html>

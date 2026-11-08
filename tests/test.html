@@ -29,6 +29,12 @@
 <script src="assets/analyze.js"></script>
 <script src="assets/viewer.js"></script>
 <script src="assets/export.js"></script>
+<script src="assets/vendor/model.js"></script>
+<script src="assets/vendor/github.js"></script>
+<script src="assets/vendor/model3d.js"></script>
+<script src="assets/send.js"></script>
+<script src="../signoff_pl/tests/fake-hub.js"></script>
+<script src="../signoff_pl/assets/demo-partcheck.js"></script>
 <script src="demo/demo-package.js"></script>
 <script>
 (async function () {
@@ -188,6 +194,58 @@
     const glb = new DataView(await PC.export.FORMATS.glb.make(p).arrayBuffer());
     eq(glb.getUint32(0, true), 0x46546C67, 'GLB magic');
     eq(PC.export.FORMATS.stl.make(p).size, 84 + p.stats.triangles * 50, 'STL size');
+  });
+
+  // ── Send to Signoff ME (assets/send.js, docs/send-to-signoff-me.md) ──
+  test('send: part keys are short, safe and unique', () => {
+    eq(PC.send.slug('2100410-011 Rev/B'), '2100410-011-rev-b');
+    eq(PC.send.slug('A'.repeat(40)).length, 25);
+    const keys = PC.send.keysFor([{ key: 'a', pn: 'X-1' }, { key: 'b', pn: 'x 1' }, { key: 'c', pn: '' , label: '???' }]);
+    eq([...keys.values()], ['x-1', 'p2', 'p3']);
+  });
+  test('send: stores pictures and meshes with the review, re-sends nothing new, keeps parts not sent', async () => {
+    const pkg = await demo('enclosure');
+    const hub = new FakeHub(), repo = 'chrismessick-dpd/me_design_review_data', dir = 'partcheck/m1/preview/';
+    hub.makeRepo(repo, { 'README.md': '#', [dir + 'old-iso.webp']: 'OLD', 'partcheck/m2/preview/index.json': '{}' }, ['own']);
+    PC.send._test({ fetch: hub.fetchFor('tok-own'), token: 'tok-own', ns: 'partcheck.test.' });
+    try {
+      eq(PC.send.home('m1'), { repo, dir, branch: 'main' }, 'an internal review lives in the ME data repo');
+      eq((await PC.send.probe('m1')).ok, true, 'the token can write there');
+      eq(PC.send.defaultHero(pkg).pn, '2100410-011', 'the largest part is the main one');
+      const r = await PC.send.store(pkg, 'm1', { hero: PC.send.defaultHero(pkg).key });
+      ok(r.ok, 'stored: ' + r.why);
+      const f = hub.files(repo), names = Object.keys(f).filter(k => k.startsWith(dir)).map(k => k.slice(dir.length)).sort();
+      eq(names, ['2100410-011-front.webp', '2100410-011-iso.webp', '2100410-011-right.webp', '2100410-011-top.webp', '2100410-011.plm.gz',
+        '2100410-012-front.webp', '2100410-012-iso.webp', '2100410-012-right.webp', '2100410-012-top.webp', '2100410-012.plm.gz', 'index.json'], 'one mesh and four views per part, and a file no part names any more is removed');
+      ok(f['partcheck/m2/preview/index.json'], 'another review’s files are left alone');
+      const txt = v => typeof v === 'string' ? v : new TextDecoder().decode(v);
+      const ix = JSON.parse(txt(f[dir + 'index.json']));
+      eq([ix.v, ix.tool, ix.hero, ix.images.length, ix.parts.map(x => [x.key, x.partNumber, x.revision, Object.keys(x.views).join(), x.mesh.file, x.massG])],
+        [1, 'partcheck', '2100410-011-iso', 8, [['2100410-011', '2100410-011', 'B', 'iso,top,front,right', '2100410-011.plm.gz', 25.5], ['2100410-012', '2100410-012', 'B', 'iso,top,front,right', '2100410-012.plm.gz', 22.9]]],
+        'the index is Fabcheck’s v: 1 with Partcheck’s parts');
+      const mb = f[dir + '2100410-011.plm.gz'], mesh = await window.Signoff.model3d.decode(typeof mb === 'string' ? Uint8Array.from(mb, c => c.charCodeAt(0)) : mb);
+      eq(mesh.idx.length / 3, ix.parts[0].mesh.tris, 'the mesh is Signoff PL’s PLM1 and decodes');
+      const r2 = await PC.send.store(pkg, 'm1', { hero: PC.send.defaultHero(pkg).key });
+      eq([r2.ok, r2.res.pushed, r2.res.skipped], [true, 1, 10], 'sending again uploads only the new index');
+      const back = pkg.parts.find(p => p.pn === '2100410-012');
+      const r3 = await PC.send.store(pkg, 'm1', { keys: [back.key] });
+      const ix3 = JSON.parse(txt(hub.files(repo)[dir + 'index.json']));
+      eq([r3.ok, ix3.parts.map(x => x.key), ix3.hero, Object.keys(hub.files(repo)).filter(k => k.startsWith(dir)).length], [true, ['2100410-012', '2100410-011'], '2100410-011-iso', 11],
+        'a part not sent keeps its entry, files and place as the main part');
+      PC.send._test({ fetch: hub.fetchFor('tok-eve'), token: 'tok-eve', ns: 'partcheck.test.' });
+      eq((await PC.send.probe('m1')).ok, false, 'a token that can’t open the repo is stopped before anything is drawn');
+    } finally { PC.send._test(null); }
+  });
+  test('send: Signoff PL’s and ME’s demo files are what the Send makes today (partcheck/tools/pl_demo.html)', async () => {
+    const pkgs = [];
+    for (const id of ['enclosure', 'bracket']) { const p = await demo(id); p.demoId = id; pkgs.push(p); }
+    const { snap } = await PC.send.demoBundle(pkgs), have = window.SIGNOFF_PL_DEMO_PARTCHECK;
+    ok(have, 'signoff_pl/assets/demo-partcheck.js is served next to this folder');
+    eq(Object.keys(snap), Object.keys(have));
+    Object.keys(snap).forEach(id => {
+      eq(snap[id].index, have[id].index, id + ' index.json (regenerate with tools/pl_demo.html)');
+      eq(snap[id].shas, have[id].shas, id + ' files (regenerate with tools/pl_demo.html)');
+    });
   });
 
   let pass = 0, fail = 0;

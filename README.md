@@ -8,12 +8,14 @@ sheet-metal shop: STEP models, drawing PDFs, DXF flat patterns and a BOM. For ea
 - whether the files agree with each other.
 
 It's the mechanical counterpart to [Fabcheck](../pcb_dfm/), and part of the Dovetail Signoff suite.
-Everything runs in the browser tab, and nothing is uploaded.
+Everything runs in the browser tab, and nothing is uploaded, except what **Send to Signoff ME**
+stores in the review's own private repository: each part's pictures and a simplified 3D model, for
+Signoff ME's overview and Signoff PL (`docs/send-to-signoff-me.md`).
 
 **Live:** https://chrismessick-dpd.github.io/partcheck/ (once GitHub Pages is turned on for the repo).
 
 **Status: prototype**, built to show MEs what's possible (2026-11-01). It doesn't store runs or
-send findings to Signoff ME yet. The reasoning, and what a full version would take, are in
+send findings to Signoff ME yet; its Send stores pictures and models only. The reasoning, and what a full version would take, are in
 `../me_fabcheck_exploration/report.md`.
 
 Open `index.html?demo` for the made-up Smart Thermostat packages:
