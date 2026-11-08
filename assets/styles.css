@@ -62,8 +62,8 @@ body.pc-dragging .pc-dropzone { display: grid; }
 .pc-part-facts { display: flex; flex-direction: column; font-size: 12px; color: var(--text-3); }
 .pc-part-sev { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
 .pc-pill { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 980px; }
-.pc-pill-error { background: var(--issue-soft); color: var(--issue); }
-.pc-pill-warn { background: var(--warn-soft); color: var(--warn); }
+.pc-pill-error { background: var(--issue-hatch), var(--issue-soft); color: var(--issue); }
+.pc-pill-warn { background: var(--warn-hatch), var(--warn-soft); color: var(--warn); }
 .pc-pill-info { background: var(--na-soft); color: var(--text-2); }
 .pc-pill-ok { background: var(--pass-soft); color: var(--pass); }
 
@@ -83,7 +83,7 @@ a.chip { text-decoration: none; }
 a.chip:hover { background: var(--accent); color: #fff; }
 .pc-sev { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-top: 4px; }
 .pc-sev-error { background: var(--issue); }
-.pc-sev-warn { background: var(--warn); }
+.pc-sev-warn { background: var(--warn); border-radius: 0; width: 10px; height: 9px; clip-path: polygon(50% 0, 100% 100%, 0 100%); }
 .pc-sev-info { background: var(--na); }
 .pc-sev-ok { background: var(--pass); }
 .pc-filter { margin-bottom: 14px; }
