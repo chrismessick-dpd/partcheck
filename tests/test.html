@@ -167,7 +167,7 @@
     return pkg;
   }
   const fids = pkg => pkg.findings.map(f => f.part + ' ' + f.check + ' ' + f.sev).sort();
-  test('demo enclosure: parts, masses and the planted findings', async () => {
+  test('demo enclosure: parts, masses, and the planted findings', async () => {
     const pkg = await demo('enclosure');
     eq(pkg.parts.map(p => p.label), ['2100410-011', '2100410-012', '2100410-031']);
     eq(pkg.purchased.map(r => r.pn), ['9100022-004']);

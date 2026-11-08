@@ -207,11 +207,11 @@
     return `<div class="page">
       <div class="eyebrow">Dovetail Signoff · prototype</div>
       <h1 class="page-title">Partcheck</h1>
-      <p class="pc-lede">Open a mechanical fab package (STEP models, drawing PDFs, DXF flat patterns and a BOM) and see what a molder or shop would get: every part in 3D, its mass and size, and whether the files agree with each other. Nothing leaves this browser tab.</p>
+      <p class="pc-lede">Open a mechanical fab package (STEP models, drawing PDFs, DXF flat patterns, and a BOM) and see what a molder or shop would get: every part in 3D, its mass and size, and whether the files agree with each other. Nothing leaves this browser tab.</p>
       <div class="card pc-drop" data-act="open">
         <div class="pc-drop-ico">${ICON.part}</div>
-        <div><b>Drop a package here</b>, a zip, a folder or loose files, or <button class="btn-plain btn" data-act="open">choose files</button> <button class="btn-plain btn" data-act="open-dir">choose a folder</button></div>
-        <div class="pc-muted">STEP, IGES, STL, PDF, DXF and CSV. Name files &lt;part number&gt;_&lt;rev&gt;_&lt;description&gt;, like 2100410-011_B_front-cover.step.</div>
+        <div><b>Drop a package here</b>, a zip, a folder, or loose files, or <button class="btn-plain btn" data-act="open">choose files</button> <button class="btn-plain btn" data-act="open-dir">choose a folder</button></div>
+        <div class="pc-muted">STEP, IGES, STL, PDF, DXF, and CSV. Name files &lt;part number&gt;_&lt;rev&gt;_&lt;description&gt;, like 2100410-011_B_front-cover.step.</div>
       </div>
       <div class="pc-demo-row">
         <button class="btn btn-primary" data-act="demo">Open the demo</button>
@@ -219,13 +219,13 @@
       </div>
       <h2 class="section-title">What it does</h2>
       <div class="grid grid-3">
-        ${[['Package checks', 'Revisions and part numbers agree across file names, STEP, drawing and BOM. Title blocks carry material, finish, tolerances and the GD&T standard. Flat patterns match the model. Each finding names the Signoff ME checks it supports.'],
-          ['Part facts and previews', 'Mass from the model\'s volume and the material on the drawing, bounding box, bodies and through-holes, plus a thumbnail and a four-view sheet: the preview pack Signoff PL would show next to each part.'],
+        ${[['Package checks', 'Revisions and part numbers agree across file names, STEP, drawing, and BOM. Title blocks carry material, finish, tolerances, and the GD&T standard. Flat patterns match the model. Each finding names the Signoff ME checks it supports.'],
+          ['Part facts and previews', 'Mass from the model\'s volume and the material on the drawing, bounding box, bodies, and through-holes, plus a thumbnail and a four-view sheet: the preview pack Signoff PL would show next to each part.'],
           ['Analysis views', 'Draft for a chosen pull direction, and wall thickness by ray casting, as color maps for an ME to read. They\'re views, not pass/fail checks.'],
         ].map(([t, d]) => `<div class="card pc-what"><div class="cl-card-title">${t}</div><p>${d}</p></div>`).join('')}
       </div>
       <h2 class="section-title">What it doesn't do (yet)</h2>
-      <p class="pc-muted pc-narrow">Real geometry DFM: minimum internal radii, bend radius against thickness, hole-to-bend distance, undercuts, rib ratios. Those need exact surfaces, not triangles, which means a Python step on OpenCascade. It also can't open native CAD (SolidWorks, Creo, Inventor): export STEP first. See <b>Convert</b> for turning a STEP into STL, OBJ, GLB or images.</p>
+      <p class="pc-muted pc-narrow">Real geometry DFM: minimum internal radii, bend radius against thickness, hole-to-bend distance, undercuts, rib ratios. Those need exact surfaces, not triangles, which means a Python step on OpenCascade. It also can't open native CAD (SolidWorks, Creo, Inventor): export STEP first. See <b>Convert</b> for turning a STEP into STL, OBJ, GLB, or images.</p>
     </div>`;
   }
 
@@ -314,7 +314,7 @@
   function viewFiles(pkg) {
     const owner = f => { const p = pkg.parts.find(p => p.files.includes(f)); return p ? p.label : f.kind === 'bom' ? 'Package (BOM)' : '—'; };
     return `<div class="page"><div class="page-head"><div class="page-head-text"><div class="eyebrow">Files</div><h1 class="page-title">${esc(pkg.name)}</h1>
-      <div class="page-sub">Every file, how it was read and which part it belongs to. Hashes let a later run prove the same files were sent.</div></div></div>
+      <div class="page-sub">Every file, how it was read, and which part it belongs to. Hashes let a later run prove the same files were sent.</div></div></div>
       <div class="card"><table class="pc-table"><thead><tr><th>File</th><th>Kind</th><th>Part</th><th>Rev</th><th class="pc-num">Size</th><th>SHA-256</th></tr></thead><tbody>
       ${pkg.files.map(f => `<tr><td>${esc(f.path)}</td><td>${esc(f.label)}</td><td class="pc-mono">${esc(owner(f))}</td><td>${esc(f.rev || '')}</td><td class="pc-num">${U.fmtBytes(f.size)}</td><td class="pc-mono pc-muted">${f.sha256.slice(0, 12)}</td></tr>`).join('')}
       </tbody></table></div></div>`;
@@ -449,7 +449,7 @@
       <div class="page-head"><div class="page-head-text"><div class="eyebrow">Previews & export</div><h1 class="page-title">${esc(pkg.name)}</h1>
       <div class="page-sub">What Signoff PL would show next to each part, and mesh files for anyone without CAD.</div></div></div>
       <h2 class="section-title">Preview pack <span class="pc-title-actions"><button class="btn btn-primary" data-act="pack">${ICON.download}Download preview pack</button><button class="btn" data-act="run-json">${ICON.download}Run record (JSON)</button></span></h2>
-      <p class="pc-muted pc-narrow">Per part: a 320 × 240 thumbnail, a four-view sheet and a small JSON (mass, size, material, findings), plus an <span class="pc-mono">index.json</span> naming the hero part. In the full design these go to the part's private repo next to the run, under <span class="pc-mono">partcheck/&lt;review&gt;/preview/</span>, for Signoff PL to read. This prototype only downloads them.</p>
+      <p class="pc-muted pc-narrow">Per part: a 320 × 240 thumbnail, a four-view sheet, and a small JSON (mass, size, material, findings), plus an <span class="pc-mono">index.json</span> naming the hero part. In the full design these go to the part's private repo next to the run, under <span class="pc-mono">partcheck/&lt;review&gt;/preview/</span>, for Signoff PL to read. This prototype only downloads them.</p>
       <div class="pc-previews">${parts.map(p => `<label class="card pc-preview${pkg.hero === p.key ? ' on' : ''}">
         <img src="${p.thumb}" alt=""><div><input type="radio" name="hero" data-act="hero-pick" data-key="${esc(p.key)}"${pkg.hero === p.key ? ' checked' : ''}> <b class="pc-mono">${esc(p.label)}</b> ${esc(p.name || '')}
         <div class="pc-muted">${U.fmtMass(p.mass)} · ${p.stats.bbox.size.map(v => v.toFixed(0)).join(' × ')} mm</div></div></label>`).join('')}</div>
@@ -464,12 +464,12 @@
   // ── Convert page ──
   function viewConvert() {
     return `<div class="page">
-      <div class="eyebrow">Convert</div><h1 class="page-title">STEP to STL, OBJ, GLB or images</h1>
-      <p class="pc-lede">For a quick look or a print without CAD: drop STEP, IGES or STL files and download them as mesh files or pictures. Nothing is uploaded.</p>
+      <div class="eyebrow">Convert</div><h1 class="page-title">STEP to STL, OBJ, GLB, or images</h1>
+      <p class="pc-lede">For a quick look or a print without CAD: drop STEP, IGES, or STL files and download them as mesh files or pictures. Nothing is uploaded.</p>
       <div class="card pc-drop" data-act="open-conv">
         <div class="pc-drop-ico">${ICON.convert}</div>
         <div><b>Drop models here</b> or <button class="btn btn-plain" data-act="open-conv">choose files</button></div>
-        <div class="pc-muted">STEP (.step, .stp), IGES (.igs), BREP or STL.</div>
+        <div class="pc-muted">STEP (.step, .stp), IGES (.igs), BREP, or STL.</div>
       </div>
       ${state.convBusy ? `<div class="card pc-busy"><div class="pc-spin"></div><pre>${esc(state.convBusy)}</pre></div>` : ''}
       ${state.conv.length ? `<div class="card"><table class="pc-table"><tbody>${state.conv.map(c => `<tr>

@@ -42,7 +42,7 @@
     return { pn, rev, desc, base };
   }
 
-  // ── STEP header: names, revision and units, read straight from the text ──
+  // ── STEP header: names, revision, and units, read straight from the text ──
   const unq = s => s.replace(/''/g, "'").replace(/\\X2\\([0-9A-F]+)\\X0\\/gi, (_, h) => String.fromCharCode(...h.match(/.{4}/g).map(x => parseInt(x, 16))));
   function stepHeader(text) {
     const head = text.slice(0, 40000);

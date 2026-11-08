@@ -6,29 +6,29 @@
   'use strict';
   const C = (id, group, title, related, what) => ({ id, group, title, related, what });
   const CATALOG = [
-    C('files.model', 'Files', 'Every part has a 3D model', ['drw-sup-1', 'drw-rev-6'], 'A STEP (or IGES) for each fabricated part, so the vendor can quote, program or cut steel.'),
-    C('files.drawing', 'Files', 'Every part has a drawing', ['drw-sup-1', 'drw-rev-6'], 'A PDF drawing carries tolerances, material, finish and inspection criteria: the STEP is nominal shape only.'),
+    C('files.model', 'Files', 'Every part has a 3D model', ['drw-sup-1', 'drw-rev-6'], 'A STEP (or IGES) for each fabricated part, so the vendor can quote, program, or cut steel.'),
+    C('files.drawing', 'Files', 'Every part has a drawing', ['drw-sup-1', 'drw-rev-6'], 'A PDF drawing carries tolerances, material, finish, and inspection criteria: the STEP is nominal shape only.'),
     C('files.flat', 'Files', 'Sheet-metal parts have a flat pattern', ['drw-sm-1', 'pd-sm-3'], 'A DXF flat pattern, or a drawing note saying the shop makes its own.'),
-    C('files.native', 'Files', 'Native CAD files', ['drw-rev-7'], 'SolidWorks, Creo or Inventor files can\'t be read here, and vendors usually want STEP. Fine to archive alongside.'),
+    C('files.native', 'Files', 'Native CAD files', ['drw-rev-7'], 'SolidWorks, Creo, or Inventor files can\'t be read here, and vendors usually want STEP. Fine to archive alongside.'),
     C('files.bom', 'Files', 'The BOM lists every part with files', ['drw-asm-1', 'drw-sup-1'], 'Parts in the package match the BOM, and fabricated BOM lines have files.'),
-    C('rev.match', 'Revisions', 'Revisions agree across files', ['drw-rev-3', 'drw-rev-6', 'drw-tb-2', 'drw-sup-1'], 'File names, the STEP, the drawing title block, its revision table, the DXF and the BOM name the same revision.'),
+    C('rev.match', 'Revisions', 'Revisions agree across files', ['drw-rev-3', 'drw-rev-6', 'drw-tb-2', 'drw-sup-1'], 'File names, the STEP, the drawing title block, its revision table, the DXF, and the BOM name the same revision.'),
     C('rev.step', 'Revisions', 'The STEP carries its revision', ['drw-rev-6', 'pd-cad-10'], 'Many CAD exports leave the revision out of the STEP; then only the file name ties the model to a revision.'),
-    C('pn.match', 'Revisions', 'Part numbers agree', ['drw-tb-1', 'pd-cad-10'], 'The drawing\'s part number matches the file names, the STEP product and the BOM.'),
+    C('pn.match', 'Revisions', 'Part numbers agree', ['drw-tb-1', 'pd-cad-10'], 'The drawing\'s part number matches the file names, the STEP product, and the BOM.'),
     C('model.read', 'Model', 'The model opens', ['pd-cad-3'], 'OpenCascade reads a solid from the STEP.'),
     C('model.solid', 'Model', 'One closed solid', ['pd-cad-4'], 'A single watertight body. Open edges or several bodies usually mean an export problem or a multibody part.'),
     C('model.units', 'Model', 'Model units are millimeters', ['pd-cad-5', 'drw-tb-5'], 'The STEP declares mm. Inch models are fine if the drawing agrees, but are a common source of 25.4× mistakes.'),
     C('dwg.text', 'Drawing', 'The drawing can be read', ['drw-rev-6'], 'A vector PDF with a text layer, exported from CAD. Scans and outlined text can\'t be checked.'),
-    C('dwg.material', 'Drawing', 'Material is called out', ['drw-tb-3', 'drw-im-1', 'drw-sm-3'], 'Grade, standard or manufacturer and trade name.'),
-    C('dwg.finish', 'Drawing', 'Finish is called out', ['drw-tb-4', 'drw-im-2'], 'Texture, plating, anodize or paint, or "none".'),
+    C('dwg.material', 'Drawing', 'Material is called out', ['drw-tb-3', 'drw-im-1', 'drw-sm-3'], 'Grade, standard, or manufacturer and trade name.'),
+    C('dwg.finish', 'Drawing', 'Finish is called out', ['drw-tb-4', 'drw-im-2'], 'Texture, plating, anodize, or paint, or "none".'),
     C('dwg.tolerance', 'Drawing', 'General tolerances are stated', ['drw-tb-10'], 'A tolerance block or general tolerance note.'),
     C('dwg.standard', 'Drawing', 'The GD&T standard is named', ['drw-tb-11'], 'ASME Y14.5 (with its edition) or ISO GPS.'),
     C('dwg.units', 'Drawing', 'Units and projection are stated', ['drw-tb-5', 'drw-tb-6'], 'Drawing units, and first- or third-angle projection.'),
-    C('dwg.signoff', 'Drawing', 'Drawn, checked and approved', ['drw-tb-9'], 'Names and dates in the title block. An RFQ can go out before approval; a release can\'t.'),
+    C('dwg.signoff', 'Drawing', 'Drawn, checked, and approved', ['drw-tb-9'], 'Names and dates in the title block. An RFQ can go out before approval; a release can\'t.'),
     C('dwg.revtable', 'Drawing', 'The revision table is current', ['drw-tb-2', 'drw-rev-1'], 'The newest row in the revision table is the title block\'s revision.'),
     C('mat.match', 'Material', 'Drawing and BOM name the same material', ['pd-cad-8', 'drw-tb-3', 'drw-im-1'], 'Same material family and grade on the drawing and in the BOM.'),
     C('mass.match', 'Material', 'Mass on the drawing matches the model', ['pd-cad-9', 'drw-tb-12'], 'Model volume × the material\'s density, against the mass in the title block (within 5%).'),
     C('sm.flat', 'Sheet metal', 'Flat pattern matches the model', ['drw-sm-1', 'pd-sm-3', 'drw-rev-6'], 'The DXF is at the part\'s revision and has the same number of holes as the 3D model.'),
-    C('sm.notes', 'Sheet metal', 'Bend notes on the drawing', ['drw-sm-2'], 'Bend direction, angle and inside radius.'),
+    C('sm.notes', 'Sheet metal', 'Bend notes on the drawing', ['drw-sm-2'], 'Bend direction, angle, and inside radius.'),
   ];
   const BY = Object.fromEntries(CATALOG.map(c => [c.id, c]));
 
@@ -115,7 +115,7 @@
           R('dwg.text', p, 'ok', D.pages + ' sheet' + (D.pages > 1 ? 's' : '') + ', ' + D.items.length + ' text items');
           const field = (check, key, sev, missing, detail) => (F(key) ? R(check, p, 'ok', F(key)) : R(check, p, sev, missing, detail));
           field('dwg.material', 'material', 'error', 'No material in the title block', 'State the grade and the manufacturer or standard.');
-          field('dwg.finish', 'finish', 'warn', 'No finish in the title block', p.process === 'molded' ? 'For a molded part: texture per surface (SPI, VDI 3400 or a texture code), or "none".' : 'Plating, anodize, paint, or "none".');
+          field('dwg.finish', 'finish', 'warn', 'No finish in the title block', p.process === 'molded' ? 'For a molded part: texture per surface (SPI, VDI 3400, or a texture code), or "none".' : 'Plating, anodize, paint, or "none".');
           if (D.tolerance) R('dwg.tolerance', p, 'ok', D.tolerance); else R('dwg.tolerance', p, 'error', 'No general tolerances', 'Without a tolerance block every untoleranced dimension is open to the vendor\'s defaults.');
           if (D.standard) R('dwg.standard', p, 'ok', D.standard); else R('dwg.standard', p, 'warn', 'No GD&T standard named', 'Name ASME Y14.5 with its edition, or ISO GPS.');
           const inch = D.units && /INCH|\bIN\b/i.test(D.units), modelUnits = p.header && p.header.units;
@@ -133,7 +133,7 @@
           if (p.process === 'sheet') {
             if (p.flatSheet) R('sm.notes', p, 'ok', 'Flat part: the model has no bends');
             else if (D.bendNote) R('sm.notes', p, 'ok', D.bendNote);
-            else R('sm.notes', p, 'warn', 'No bend notes', 'Give direction, angle and inside radius for each bend.');
+            else R('sm.notes', p, 'warn', 'No bend notes', 'Give direction, angle, and inside radius for each bend.');
           }
         }
       }

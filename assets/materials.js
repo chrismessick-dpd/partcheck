@@ -1,4 +1,4 @@
-// Material callouts → a family, a density and the process it usually implies. The first match
+// Material callouts → a family, a density, and the process it usually implies. The first match
 // wins, so blends and filled grades come before their base resins. Densities are typical datasheet
 // values (g/cm³); a part's mass is only as good as this match, so the UI always says which row it used.
 (function (PC) {

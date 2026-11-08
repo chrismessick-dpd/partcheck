@@ -1,7 +1,7 @@
 # Partcheck: mechanical package check (prototype)
 
 Partcheck opens a mechanical fab package, meaning what goes to a molder, machine shop or
-sheet-metal shop: STEP models, drawing PDFs, DXF flat patterns and a BOM. For each part it shows:
+sheet-metal shop: STEP models, drawing PDFs, DXF flat patterns, and a BOM. For each part it shows:
 
 - a 3D view;
 - mass and size;
@@ -28,7 +28,7 @@ A few problems are planted in them for the checks to find.
   checks it gives evidence for, and in demo mode those chips open the check in Signoff ME's demo
   review.
   - Every part has a model and a drawing; sheet metal has a flat pattern; BOM lines have files.
-  - The revision and part number agree across file names, the STEP, the drawing title block and its
+  - The revision and part number agree across file names, the STEP, the drawing title block, and its
     revision table, the DXF, and the BOM.
   - The model is one closed solid, in mm.
   - The title block has material, finish, a tolerance block, the GD&T standard, units, projection
@@ -37,7 +37,7 @@ A few problems are planted in them for the checks to find.
   - The flat pattern is at the part's revision and has as many holes as the model.
 - **Part facts:**
   - mass (model volume × the density of the material on the drawing);
-  - bounding box, volume, surface area and center of mass;
+  - bounding box, volume, surface area, and center of mass;
   - bodies and through-holes;
   - the STEP header (schema, units, originating system, product, revision).
 - **Analysis views.** These are color maps for an ME to read, not pass/fail checks.
@@ -46,13 +46,13 @@ A few problems are planted in them for the checks to find.
 - **Previews.** Each part gets a thumbnail (you can pick the view), and a four-view sheet.
 - **Preview pack.** This is what Signoff PL would show next to each part. The format is in
   [docs/preview-format.md](docs/preview-format.md).
-- **Convert.** Turn STEP, IGES or STL into STL, OBJ, GLB (glTF, which opens in PowerPoint) or PNG
+- **Convert.** Turn STEP, IGES, or STL into STL, OBJ, GLB (glTF, which opens in PowerPoint), or PNG
   views, one file or a whole batch.
 
 ## What it doesn't do
 
 - **No geometry DFM.** It doesn't check minimum internal radius, bend radius against thickness,
-  hole-to-bend distance, undercuts or rib ratios. Those need exact surfaces, not the triangle mesh
+  hole-to-bend distance, undercuts, or rib ratios. Those need exact surfaces, not the triangle mesh
   the browser gets, which means a Python step on OpenCascade. We're waiting on ME input before
   building it.
 - **No native CAD** (SLDPRT, Creo, Inventor). Nothing open-source can read SolidWorks files.
@@ -108,7 +108,7 @@ things, all now covered by tests:
   supplemental geometry) next to the solid, which a whole-file test misread as a broken solid.
 - **Loose file names group by shared prefix**, and tags like `asme1` or `ap242` aren't taken for
   part numbers.
-- **Drawing notes are read too.** Material, revision and units given as notes (`5. MATERIAL: …`,
+- **Drawing notes are read too.** Material, revision, and units given as notes (`5. MATERIAL: …`,
   `Rev D`, `UNITS: INCHES`) are picked up, and a drawing in inches against a model in mm gets a
   note.
 - **Flat sheet parts skip the bend-note check.**
@@ -119,7 +119,7 @@ All are pinned, and each is checked by its SRI hash:
 
 | Library | Version | Use |
 | --- | --- | --- |
-| occt-import-js | 0.0.23 | OpenCascade as WebAssembly: STEP, IGES and BREP to triangles. The `.wasm` is 7.6 MB, about 2.3 MB compressed. It runs in `assets/occt-worker.js` |
+| occt-import-js | 0.0.23 | OpenCascade as WebAssembly: STEP, IGES, and BREP to triangles. The `.wasm` is 7.6 MB, about 2.3 MB compressed. It runs in `assets/occt-worker.js` |
 | three.js | r149 | The 3D view and the preview renders |
 | pdf.js | 3.11.174 | Drawing text and page images |
 | JSZip | 3.10.1 | Zipped packages, and the preview pack |
@@ -130,13 +130,13 @@ All are pinned, and each is checked by its SRI hash:
 | --- | --- |
 | `index.html`, `assets/app.js` | The UI |
 | `assets/package.js` | Unzipping, file kinds, names (part number and rev), the BOM, the STEP header, grouping into parts |
-| `assets/analyze.js` | Reads each part's model, drawing and DXF, and works out its rev, process, material and mass |
+| `assets/analyze.js` | Reads each part's model, drawing, and DXF, and works out its rev, process, material, and mass |
 | `assets/checks.js` | The package checks (`CATALOG`), each with its related Signoff ME check ids |
 | `assets/mesh.js` | Mass properties, topology, draft, wall thickness (BVH ray casting and nearest point) |
-| `assets/drawing.js` | PDF title block and revision table, and DXF loops, holes and SVG |
-| `assets/materials.js` | Material callouts to family, density and the usual process |
+| `assets/drawing.js` | PDF title block and revision table, and DXF loops, holes, and SVG |
+| `assets/materials.js` | Material callouts to family, density, and the usual process |
 | `assets/viewer.js` | three.js view and off-screen previews |
-| `assets/export.js` | STL, OBJ, GLB, PNG, the preview pack and the run record |
+| `assets/export.js` | STL, OBJ, GLB, PNG, the preview pack, and the run record |
 | `assets/libs.js`, `assets/occt-worker.js` | Pinned library loading; OpenCascade in a worker |
 | `assets/suite.css` | Signoff EE's stylesheet, copied by `tools/sync_suite_css.py` |
 | `demo/` | The generated Smart Thermostat packages and `demo-package.js` (built by `tools/make_demo.py`) |

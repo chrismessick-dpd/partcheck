@@ -1,4 +1,4 @@
-// The 3D view (three.js): an orthographic, Z-up CAD-style view with turntable orbit, pan and zoom,
+// The 3D view (three.js): an orthographic, Z-up CAD-style view with turntable orbit, pan, and zoom,
 // colored by plain shading, draft for a pull direction, or wall thickness. Also renders the
 // preview images (thumbnail, four-view sheet) off screen.
 (function (PC) {
