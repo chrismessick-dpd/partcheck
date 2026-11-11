@@ -653,6 +653,13 @@
     document.querySelectorAll('[data-demo-href]').forEach(a => { a.href = a.getAttribute('href') + '?demo'; });
   }
   $('#version').textContent = 'Build ' + (PC.VERSION || 'dev');
+  // The sidebar foot shared with the suite (signoff/assets/sidefoot.js): the GitHub sign-in pill,
+  // Settings, People & access for FTEs, and the Dovetail Signoff links folded to icons.
+  if (window.SignoffFoot) window.SignoffFoot.mount({
+    pill: '#sync-pill', settings: '[data-foot-settings]', people: '#people-link', tools: '#side-tools',
+    theme: readTheme, setTheme: t => { writeTheme(t); applyTheme(t); },
+    intro: 'Partcheck itself needs no sign-in. This is the GitHub sign-in every Signoff tool in this browser shares.'
+  });
   renderAll();
   if (DEMO) loadDemo();
 })(window.PC = window.PC || {});
