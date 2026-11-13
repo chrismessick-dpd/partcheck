@@ -601,7 +601,7 @@
   function pageIdle() {
     const a = document.activeElement;
     const typing = a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable);
-    return !typing && !document.hidden && !document.querySelector('.sheet-wrap, .menu, dialog[open]') && !state.busy && !state.convBusy && !state.conv.length && (DEMO || !state.pkgs.length);
+    return !typing && !document.hidden && !document.querySelector('.sheet-wrap, .menu, dialog[open], .tk-wrap, .tk-new, #people-pop') && !state.busy && !state.convBusy && !state.conv.length && (DEMO || !state.pkgs.length);
   }
   async function reloadWhenIdle() {
     if (!updateWaiting) return;
