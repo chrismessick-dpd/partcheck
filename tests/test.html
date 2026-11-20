@@ -267,6 +267,17 @@
       eq(snap[id].index, have[id].index, id + ' index.json (regenerate with tools/pl_demo.html)');
       eq(snap[id].shas, have[id].shas, id + ' files (regenerate with tools/pl_demo.html)');
     });
+    // Signoff ME's demo reads the same folder (me_design_review/assets/demo-previews/<id>/).
+    for (const id of Object.keys(snap)) {
+      const base = '../../me_design_review/assets/demo-previews/' + id + '/';
+      const ix = await fetch(base + 'index.json').then(r => r.ok ? r.json() : null);
+      eq(ix, snap[id].index, 'Signoff ME ' + id + ' index.json (regenerate with tools/pl_demo.html)');
+      for (const name of Object.keys(snap[id].shas)) {
+        const r = await fetch(base + name);
+        ok(r.ok, 'Signoff ME ' + id + '/' + name + ' is there');
+        eq(await PC.send.gitSha(new Uint8Array(await r.arrayBuffer())), snap[id].shas[name], 'Signoff ME ' + id + '/' + name + ' is current');
+      }
+    }
   });
 
   let pass = 0, fail = 0;

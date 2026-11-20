@@ -5,6 +5,9 @@ default for every decision below except 7: the demo is rebuilt in this format, s
 what the real Send stores. This replaces `preview-format.md` (the `signoff-preview/1` proposal, which
 never shipped and doesn't match what PL reads).
 
+**Since 2026-11-19** Signoff PL and Signoff ME write the same folder (`../signoff_pl/docs/part-models.md`): the
+Send replaces a part by its part number, whoever stored it, and keeps a part's stored STEP (`model3d.parts.named`).
+
 **As built:**
 - **Partcheck:**
   - `assets/send.js` (`PC.send`) and the *Send to Signoff ME…* sheet on Overview and on Previews &

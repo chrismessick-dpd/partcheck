@@ -33,7 +33,8 @@
   function cadWorker() {
     if (!worker) {
       if (location.protocol === 'file:') throw new Error('Reading STEP needs the hosted page or a local server; a page opened from disk can’t start the STEP reader.');
-      worker = new Worker('assets/occt-worker.js');
+      // A page whose worker sits elsewhere (Signoff ME's vendored copy) sets S.model3d.workerUrl first.
+      worker = new Worker((S.model3d && S.model3d.workerUrl) || 'assets/occt-worker.js');
       worker.onmessage = function (e) { var p = pending[e.data.id]; if (!p) return; delete pending[e.data.id]; if (e.data.ok) p.resolve(e.data.result); else p.reject(new Error(e.data.error)); };
       worker.onerror = function (e) {
         Object.keys(pending).forEach(function (k) { pending[k].reject(new Error('The STEP reader stopped: ' + (e.message || 'worker error'))); });
@@ -675,8 +676,134 @@
     });
   }
 
+  // ── Part models kept with a Signoff ME review (docs/part-models.md) ──
+  // One folder, <ME review's repo>/partcheck/<review id>/preview/, holds every model of the review's parts:
+  // index.json (Partcheck's v: 1 index with `parts`), each part's pictures, its PLM1 mesh, and, if kept, its
+  // STEP gzipped. Partcheck's Send, Signoff PL, and Signoff ME all write it; the latest write for a part
+  // number wins. `store` is the engine's GitHubStore (snapshot, blobBytes, putFiles), `dir` the folder.
+  var parts = (function () {
+    // A part number as a file-name key: lowercase a-z, 0-9, and dashes, at most 25 characters, so
+    // "<key>-front" stays within the 32 the readers allow (the same as Partcheck's Send).
+    function slug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 25).replace(/-+$/, ''); }
+    // Part numbers compare trimmed and lowercased, as Signoff PL matches a Part to its part.
+    function norm(s) { return String(s || '').trim().toLowerCase(); }
+    // The files an index uses (anything else in the folder is removed when it's written).
+    function named(index) {
+      var out = { 'index.json': 1 };
+      ((index && index.images) || []).forEach(function (i) { if (i && i.file) out[i.file] = 1; });
+      ((index && index.parts) || []).forEach(function (x) {
+        if (x && x.mesh && x.mesh.file) out[x.mesh.file] = 1;
+        if (x && x.step && x.step.file) out[x.step.file] = 1;
+      });
+      return out;
+    }
+    function find(index, partNumber) {
+      var n = norm(partNumber);
+      return ((index && index.parts) || []).filter(function (x) { return x && norm(x.partNumber) === n; })[0] || null;
+    }
+    function freeKey(index, want) {
+      var used = {};
+      index.parts.forEach(function (x) { if (x && x.key) used[x.key] = 1; });
+      if (want && !used[want]) return want;
+      var i = 1;
+      while (used['p' + i]) i++;
+      return 'p' + i;
+    }
+    function bytesOf(blob) {
+      return blob instanceof Uint8Array ? Promise.resolve(blob) : blob.arrayBuffer().then(function (b) { return new Uint8Array(b); });
+    }
+    function copy(prev) {
+      var index = prev ? JSON.parse(JSON.stringify(prev)) : { v: 1, tool: 'signoff', runId: '', at: '', hero: '', images: [], parts: [] };
+      index.images = (Array.isArray(index.images) ? index.images : []).filter(function (i) { return i && typeof i === 'object'; });
+      index.parts = (Array.isArray(index.parts) ? index.parts : []).filter(function (x) { return x && typeof x === 'object'; });
+      // A part Partcheck sent has no time of its own (the folder's is its); keep it before the folder's moves on.
+      if (index.at) index.parts.forEach(function (x) { if (!x.at) x.at = index.at; });
+      return index;
+    }
+    // Take a part (and its pictures) out of an index.
+    function drop(index, partNumber) {
+      var old = find(index, partNumber), gone = {};
+      if (!old) return null;
+      Object.keys(old.views || {}).forEach(function (v) { gone[old.views[v]] = 1; });
+      index.parts = index.parts.filter(function (x) { return x !== old; });
+      index.images = index.images.filter(function (i) { return !gone[i.key]; });
+      return old;
+    }
+    function heroOk(index) {
+      if (!index.images.some(function (i) { return i.key === index.hero; })) {
+        var first = index.parts[0], v = first && first.views ? first.views : {};
+        index.hero = v.iso || v[Object.keys(v)[0]] || '';
+      }
+      return index;
+    }
+    // Read the folder at one commit, apply edit(index or null) → { index, files: [{ name, bytes }] } (or
+    // null for no change), and write it in one commit on that head, removing files no part names any more
+    // (an index with no parts left removes the folder). A repo that moved on is read again (three tries).
+    // Resolves { res, index } or null.
+    function write(store, dir, edit, message, tries) {
+      tries = tries || 0;
+      return store.snapshot().then(function (snap) {
+        var entries = snap.entries.filter(function (e) { return e.type === 'blob' && e.path.indexOf(dir) === 0; });
+        var at = entries.filter(function (e) { return e.path === dir + 'index.json'; })[0];
+        return (at ? store.blobBytes(at.sha).then(function (b) {
+          try { var d = JSON.parse(new TextDecoder().decode(b)); return d && typeof d === 'object' ? d : null; } catch (e) { return null; }
+        }) : Promise.resolve(null)).then(edit).then(function (out) {
+          if (!out) return null;
+          var live = out.index.parts.length > 0, keep = live ? named(out.index) : {};
+          var files = (live ? out.files.concat([{ name: 'index.json', text: JSON.stringify(out.index, null, 1) }]) : [])
+            .map(function (f) { return f.bytes ? { path: dir + f.name, bytes: f.bytes } : { path: dir + f.name, text: f.text }; })
+            .concat(entries.filter(function (e) { return !keep[e.path.slice(dir.length)]; }).map(function (e) { return { path: e.path, remove: true }; }));
+          return store.putFiles(files, { head: snap.head, message: message }).then(function (res) { return { res: res, index: out.index }; });
+        });
+      }).catch(function (err) {
+        if (err && err.code === 'moved' && tries < 2) return write(store, dir, edit, message, tries + 1);
+        throw err;
+      });
+    }
+    /* Put one part's model in the folder, replacing any part with the same number, whoever wrote it.
+       o: { prep (prepare's result), partNumber, revision, name, source ('pl' | 'me'), by, at, keepStep, message } */
+    function put(store, dir, o) {
+      var at = o.at || new Date().toISOString();
+      var step = o.keepStep && o.prep.stepFits && o.prep.stepGz ? o.prep.stepGz : null;
+      return Promise.all([bytesOf(o.prep.meshGz)].concat(o.prep.views.map(function (v) { return bytesOf(v.blob); }))).then(function (bytes) {
+        return write(store, dir, function (prev) {
+          var index = copy(prev), old = drop(index, o.partNumber);
+          var key = old && /^[a-z0-9-]{1,25}$/.test(old.key || '') ? old.key : freeKey(index, slug(o.partNumber));
+          var files = [{ name: key + '.plm.gz', bytes: bytes[0] }], views = {};
+          o.prep.views.forEach(function (v, i) {
+            var k = key + '-' + v.key, webp = v.blob && v.blob.type === 'image/webp', file = k + (webp ? '.webp' : '.png');
+            files.push({ name: file, bytes: bytes[i + 1] });
+            index.images.push({ key: k, file: file, type: webp ? 'image/webp' : 'image/png', w: v.w, h: v.h });
+            views[v.key] = k;
+          });
+          var entry = { key: key, partNumber: String(o.partNumber || '').trim(), revision: o.revision || '', name: o.name || '', views: views,
+            mesh: { file: key + '.plm.gz', size: bytes[0].length, tris: o.prep.tris, srcTris: o.prep.srcTris, bboxMm: o.prep.bboxMm } };
+          if (step) {
+            files.push({ name: key + '.step.gz', bytes: step });
+            entry.step = { file: key + '.step.gz', size: step.length };
+          }
+          entry.file = String(o.prep.name || '').slice(0, 160);
+          entry.source = o.source || 'pl'; entry.at = at; entry.by = o.by || '';
+          index.parts.push(entry);
+          index.at = at;
+          return { index: heroOk(index), files: files };
+        }, o.message || ('Signoff: model for ' + (o.partNumber || 'a part')));
+      });
+    }
+    // Take one part (by number) out of the folder. Resolves null when it wasn't there.
+    function remove(store, dir, partNumber, message) {
+      return write(store, dir, function (prev) {
+        var index = copy(prev);
+        if (!drop(index, partNumber)) return null;
+        index.at = new Date().toISOString();
+        return { index: heroOk(index), files: [] };
+      }, message || ('Signoff: model for ' + partNumber + ' removed'));
+    }
+    return { slug: slug, norm: norm, named: named, find: find, put: put, remove: remove, write: write };
+  })();
+
   S.model3d = { VIEWS: VIEWS, MAX_TRIS: MAX_TRIS, STEP_CAP: STEP_CAP, readStep: readStep, fromOcct: fromOcct, bbox: bbox, simplify: simplify,
     encode: encode, decode: decode, gzip: gzip, render: render, png: png, viewer: viewer, orbit: orbit, budget: budget, prepare: prepare,
     renderScene: renderScene, rotation: rotation, place: place, turn: turn, placedBox: placedBox, features: features, alignMove: alignMove,
-    slab: slab, texture: texture };
+    slab: slab, texture: texture, parts: parts };
 })(window.Signoff = window.Signoff || {});

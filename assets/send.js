@@ -190,7 +190,10 @@
     const prev = opts.prev && Array.isArray(opts.prev.parts) ? opts.prev : null;
     if (prev) {
       const prevImg = new Map((prev.images || []).map(i => [i.key, i]));
-      prev.parts.filter(x => x && !parts.some(y => y.key === x.key)).forEach(x => {
+      // Signoff PL and Signoff ME write parts here too (signoff_pl/docs/part-models.md): a part with the same
+      // number is replaced, whoever wrote it.
+      const pn = s => String(s || '').trim().toLowerCase();
+      prev.parts.filter(x => x && !parts.some(y => y.key === x.key || pn(y.partNumber) === pn(x.partNumber))).forEach(x => {
         const keep = Object.values(x.views || {}).map(k => prevImg.get(k)).filter(Boolean);
         keep.forEach(i => images.push(i));
         parts.push(x);
@@ -206,11 +209,9 @@
     return { index, files };
   }
   // The files an index names (for removing the ones it no longer does).
+  // (A part kept from Signoff PL or Signoff ME may have its STEP stored too: model3d.parts.named.)
   function named(index) {
-    const out = new Set(['index.json']);
-    (index.images || []).forEach(i => out.add(i.file));
-    (index.parts || []).forEach(x => x.mesh && x.mesh.file && out.add(x.mesh.file));
-    return out;
+    return new Set(Object.keys(M3().parts.named(index)));
   }
 
   // Store the chosen parts with the review. Never throws; resolves { ok, repo, dir, res, index } or
@@ -274,17 +275,17 @@
   async function demoBundle(pkgs) {
     const built = await demoPreviews(pkgs), files = {}, snap = {};
     for (const id of Object.keys(built)) {
-      const { index } = built[id], shas = {}, byName = new Map(built[id].files.map(f => [f.name, f]));
+      const { index } = built[id], shas = {};
       for (const f of built[id].files) {
         if (!f.bytes) continue;
         shas[f.name] = await gitSha(f.bytes);
         files['signoff_pl/assets/demo-partcheck/' + id + '/' + f.name] = f.bytes;
       }
       snap[id] = { index, shas };
-      const hp = index.parts.find(x => Object.values(x.views).includes(index.hero));
-      Object.keys(hp.views).forEach(v => {
-        const img = index.images.find(i => i.key === hp.views[v]);
-        files['me_design_review/assets/demo-previews/' + id + '-' + v + '.' + img.file.split('.').pop()] = byName.get(img.file).bytes;
+      // Signoff ME's demo reads the whole folder (index.json, pictures, and meshes) through the same code as a
+      // repo (its config.demo.pictures { folder: true }), for its overview's pictures and 3D view.
+      built[id].files.forEach(f => {
+        files['me_design_review/assets/demo-previews/' + id + '/' + f.name] = f.bytes || new TextEncoder().encode(f.text);
       });
     }
     files['signoff_pl/assets/demo-partcheck.js'] = new TextEncoder().encode(
