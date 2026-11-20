@@ -27,7 +27,8 @@
 
   async function analyzePart(p, log) {
     const byKind = k => p.files.filter(f => f.kind === k);
-    p.model = byKind('model')[0] || byKind('mesh')[0] || null;
+    // A model added in Partcheck wins: it's there because the package's own was missing or didn't open.
+    p.model = p.files.find(f => f.added && (f.kind === 'model' || f.kind === 'mesh')) || byKind('model')[0] || byKind('mesh')[0] || null;
     p.drawingFile = byKind('drawing')[0] || null;
     p.flatFile = byKind('flat')[0] || null;
     if (p.model) {

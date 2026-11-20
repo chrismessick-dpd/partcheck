@@ -68,8 +68,8 @@
   // ── Opening packages ──
   async function openInputs(name, inputs, opts = {}) {
     const log = [];
-    state.busy = { label: 'Reading ' + name, log };
-    state.view = 'overview';
+    state.busy = { label: opts.busyLabel || 'Reading ' + name, log };
+    if (!opts.replace) state.view = 'overview';
     renderAll();
     const say = s => { log.push(s); const el = $('#busy-log'); if (el) { el.textContent = log.slice(-14).join('\n'); } };
     try {
@@ -79,8 +79,17 @@
       await PC.analyze.analyze(pkg, say);
       say('Rendering previews');
       for (const p of pkg.parts) if (p.mesh && p.stats) { p.thumb = PC.viewer.snapshot(p); await U.nextFrame(); }
-      state.pkgs = state.pkgs.filter(p => p.name !== pkg.name).concat(pkg);
-      if (!opts.background) { state.active = pkg.id; state.view = 'overview'; state.part = null; }
+      if (opts.replace) {   // the same package again with a model added or removed: keep its place, view and hero
+        const at = state.pkgs.indexOf(opts.replace);
+        if (opts.replace.hero && pkg.parts.some(p => p.key === opts.replace.hero)) pkg.hero = opts.replace.hero;
+        state.pkgs = at >= 0 ? state.pkgs.map(p => (p === opts.replace ? pkg : p)) : state.pkgs.concat(pkg);
+        state.active = pkg.id;
+        if (opts.part && pkg.parts.some(p => p.key === opts.part)) { state.view = 'part'; state.part = opts.part; }
+        else state.view = 'overview';
+      } else {
+        state.pkgs = state.pkgs.filter(p => p.name !== pkg.name).concat(pkg);
+        if (!opts.background) { state.active = pkg.id; state.view = 'overview'; state.part = null; }
+      }
     } catch (e) {
       console.error(e);
       toast('Could not read ' + name + ': ' + (e.message || e), 'error');
@@ -95,6 +104,25 @@
     for (const f of list) out.push({ path: f.webkitRelativePath || f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
     return out;
   }
+  // Add a model to one part from the part's page (or to a purchased BOM line), for its pictures, 3D
+  // and Send to Signoff ME. It isn't put in the package: the package is read again with the file
+  // tied to the part (`forPart`, package.js), so the checks still say what the package lacks.
+  // A part has at most one added model; adding another replaces it, and null removes it.
+  function withModel(pkg, key, file) {
+    const keep = pkg.files.filter(f => !(f.added && f.forPart === key))
+      .map(f => ({ path: f.path, bytes: f.bytes, forPart: f.forPart, added: f.added }));
+    if (file) keep.push({ path: 'Added in Partcheck/' + file.path.split('/').pop(), bytes: file.bytes, forPart: key, added: true });
+    const label = (pkg.parts.find(p => p.key === key) || { label: key }).label;
+    return openInputs(pkg.name, keep, { demoId: pkg.demoId, replace: pkg, part: key,
+      busyLabel: (file ? 'Adding the model for ' : 'Removing the added model from ') + label });
+  }
+  let modelFor = null;
+  function pickModel(key) {
+    modelFor = key;
+    $('#model-input').click();
+  }
+  const addedTag = f => (f.added ? ' <span class="chip" title="Added here in Partcheck for previews; not in the package you opened">added in Partcheck</span>' : '');
+
   function nameFor(inputs) {
     if (inputs.length === 1) return inputs[0].path.split('/').pop();
     const top = inputs[0].path.split('/')[0];
@@ -258,9 +286,9 @@
       <h2 class="section-title">Parts</h2>
       <div class="pc-parts">${parts.map(p => partCard(pkg, p)).join('')}</div>
       ${pkg.purchased && pkg.purchased.length ? `<h2 class="section-title">Purchased parts in the BOM</h2>
-        <div class="card"><table class="pc-table"><thead><tr><th>Part number</th><th>Description</th><th>Material</th><th>Qty</th></tr></thead><tbody>
-        ${pkg.purchased.map(r => `<tr><td class="pc-mono">${esc(r.pn)}</td><td>${esc(r.desc)}</td><td>${esc(r.material)}</td><td>${esc(r.qty)}</td></tr>`).join('')}</tbody></table>
-        <div class="pc-foot">No files expected for purchased parts.</div></div>` : ''}
+        <div class="card"><table class="pc-table"><thead><tr><th>Part number</th><th>Description</th><th>Material</th><th>Qty</th><th></th></tr></thead><tbody>
+        ${pkg.purchased.map(r => `<tr><td class="pc-mono">${esc(r.pn)}</td><td>${esc(r.desc)}</td><td>${esc(r.material)}</td><td>${esc(r.qty)}</td><td class="pc-num"><button class="btn" data-act="add-model" data-key="${esc(r.pn)}" title="Add the supplier's model to see the part in 3D and send its pictures to Signoff ME">Add a model…</button></td></tr>`).join('')}</tbody></table>
+        <div class="pc-foot">No files expected for purchased parts. A supplier's model added here shows the part in 3D; it isn't checked.</div></div>` : ''}
       <h2 class="section-title">Checks run</h2>
       ${checkSummary(pkg)}
     </div>`;
@@ -316,7 +344,7 @@
     return `<div class="page"><div class="page-head"><div class="page-head-text"><div class="eyebrow">Files</div><h1 class="page-title">${esc(pkg.name)}</h1>
       <div class="page-sub">Every file, how it was read and which part it belongs to. Hashes let a later run prove the same files were sent.</div></div></div>
       <div class="card"><table class="pc-table"><thead><tr><th>File</th><th>Kind</th><th>Part</th><th>Rev</th><th class="pc-num">Size</th><th>SHA-256</th></tr></thead><tbody>
-      ${pkg.files.map(f => `<tr><td>${esc(f.path)}</td><td>${esc(f.label)}</td><td class="pc-mono">${esc(owner(f))}</td><td>${esc(f.rev || '')}</td><td class="pc-num">${U.fmtBytes(f.size)}</td><td class="pc-mono pc-muted">${f.sha256.slice(0, 12)}</td></tr>`).join('')}
+      ${pkg.files.map(f => `<tr><td>${esc(f.path)}${addedTag(f)}</td><td>${esc(f.label)}</td><td class="pc-mono">${esc(owner(f))}</td><td>${esc(f.rev || '')}</td><td class="pc-num">${U.fmtBytes(f.size)}</td><td class="pc-mono pc-muted">${f.sha256.slice(0, 12)}</td></tr>`).join('')}
       </tbody></table></div></div>`;
   }
 
@@ -355,11 +383,15 @@
             ${fact('Mesh', s.triangles.toLocaleString('en-US') + ' triangles' + (p.readMs != null ? ', read in ' + p.readMs + ' ms' : ''))}
             ${p.header ? fact('STEP', esc(p.header.ap + ', ' + p.header.units + (p.header.system ? ', from ' + p.header.system : '') + (p.header.products[0] && p.header.products[0].id ? '. Product "' + p.header.products[0].id + '"' : '') + (p.header.revision ? ', rev ' + p.header.revision : ', no revision inside'))) : ''}
           </dl>
-          <div class="pc-side-actions"><button class="btn" data-act="hero" title="Use the current view for this part's thumbnail and preview">Use this view for the thumbnail</button></div></div>
+          <div class="pc-side-actions"><button class="btn" data-act="hero" title="Use the current view for this part's thumbnail and preview">Use this view for the thumbnail</button></div>
+          ${p.model.added ? `<div class="pc-added"><div><b>Model added in Partcheck</b>: ${esc(p.model.name)}. ${p.process === 'purchased' ? 'For previews only.' : 'For previews only; the package still has no model for this part.'}</div>
+            <div class="pc-side-actions"><button class="btn" data-act="add-model" data-key="${esc(p.key)}">Replace…</button><button class="btn btn-plain" data-act="remove-model" data-key="${esc(p.key)}">Remove</button></div></div>` : ''}</div>
           <div class="card pc-export-mini"><div class="pc-card-title">Export this part</div>
             <div class="pc-btns">${Object.entries(PC.export.FORMATS).map(([k, f]) => `<button class="btn" data-act="export-part" data-fmt="${k}" title="${esc(f.what)}">${ICON.download}${f.label}</button>`).join('')}</div></div>
         </div>
-      </div>` : `<div class="card pc-nomodel-big">${ICON.part}<div>${p.modelError ? 'The model didn\'t open: ' + esc(p.modelError) : 'No 3D model for this part in the package.'}</div></div>`}
+      </div>` : `<div class="card pc-nomodel-big">${ICON.part}<div>${p.modelError ? 'The model didn\'t open: ' + esc(p.modelError) : 'No 3D model for this part in the package.'}</div>
+        <div class="pc-nomodel-acts"><button class="btn" data-act="add-model" data-key="${esc(p.key)}">${p.modelError ? 'Try another model…' : 'Add a model…'}</button>${p.model && p.model.added ? `<button class="btn btn-plain" data-act="remove-model" data-key="${esc(p.key)}">Remove it</button>` : ''}</div>
+        <div class="pc-muted pc-nomodel-note">A STEP, IGES, or STL from your computer, for this part's pictures, 3D, and Send to Signoff ME. It's added here only: the package you opened doesn't change${p.process === 'purchased' ? '' : ', and the checks still say it has no model'}.</div></div>`}
       <h2 class="section-title">Checks</h2>
       <div class="card"><table class="pc-table">
         <tbody>${res.map(r => `<tr><td>${sevDot(r.sev)}</td><td><b>${esc(PC.checks.BY[r.check].title)}</b><div class="${r.sev === 'ok' ? 'pc-muted' : ''}">${esc(r.title)}${r.detail ? ` <span class="pc-muted">${esc(r.detail)}</span>` : ''}</div></td><td>${relatedChips(pkg, r.related)}</td></tr>`).join('') || '<tr><td class="pc-muted">No checks apply (a purchased part).</td></tr>'}</tbody></table></div>
@@ -384,7 +416,7 @@
           <tr><th>Bend lines</th><td>${p.flat.bends}</td></tr><tr><th>Revision</th><td>${esc(p.flatFile.rev || p.flat.rev || '—')}</td></tr>
         </tbody></table></div></div>` : ''}
       <h2 class="section-title">Files</h2>
-      <div class="card"><table class="pc-table"><tbody>${p.files.map(f => `<tr><td>${esc(f.name)}</td><td>${esc(f.label)}</td><td>${esc(f.rev || '')}</td><td class="pc-num">${U.fmtBytes(f.size)}</td></tr>`).join('') || '<tr><td class="pc-muted">No files.</td></tr>'}</tbody></table></div>
+      <div class="card"><table class="pc-table"><tbody>${p.files.map(f => `<tr><td>${esc(f.name)}${addedTag(f)}</td><td>${esc(f.label)}</td><td>${esc(f.rev || '')}</td><td class="pc-num">${U.fmtBytes(f.size)}</td></tr>`).join('') || '<tr><td class="pc-muted">No files.</td></tr>'}</tbody></table></div>
     </div>`;
   }
 
@@ -623,6 +655,8 @@
       case 'home': state.view = state.pkgs.length ? 'overview' : 'home'; if (!state.pkgs.length) state.active = null; renderAll(); break;
       case 'pkg': state.active = el.dataset.id; state.view = 'overview'; renderAll(); break;
       case 'part': state.part = el.dataset.key; state.view = 'part'; renderAll(); break;
+      case 'add-model': if (pkg) pickModel(el.dataset.key); break;
+      case 'remove-model': if (pkg) withModel(pkg, el.dataset.key, null); break;
       case 'view': state.view = el.dataset.view; renderAll(); break;
       case 'convert': state.view = 'convert'; renderAll(); break;
       case 'filter': state.filter = el.dataset.f; renderAll(); break;
@@ -665,6 +699,13 @@
   document.addEventListener('change', e => {
     const el = e.target, pkg = active(), p = partOf(pkg, state.part);
     if (el.id === 'file-input' || el.id === 'dir-input') { onFiles([...el.files]); el.value = ''; return; }
+    if (el.id === 'model-input') {
+      const key = modelFor, f = el.files[0];
+      modelFor = null;
+      if (pkg && key && f) readFileList([f]).then(r => withModel(pkg, key, r[0]));
+      el.value = '';
+      return;
+    }
     if (el.dataset.act === 'pull') { state.pull = el.value; if (p) applyMode(p); }
     if (el.dataset.act === 'min-draft') { state.minDraft = Math.max(0.1, Math.min(10, +el.value || 1)); if (p) applyMode(p); }
   });

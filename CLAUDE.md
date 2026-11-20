@@ -26,6 +26,14 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
   - The vendored files are in `assets/vendor/` (`python tools/sync_vendor.py`; PL's `model3d.js` is
     one of them). Re-run it when the engine's `model.js` or `github.js`, or PL's `model3d.js`,
     changes.
+- **Add a model (2026-11-08, branch `me-send`, not committed):** *Add a model…* on a part with no
+  model (or one that didn't open) and on each purchased BOM line. The package is rebuilt with the
+  file as an input with `forPart` and `added: true` (`app.js` `withModel`, `package.js` `build`):
+  it joins that part, its name's part number and revision are ignored, it's left out of
+  `pkg.sha256`, and `analyze.js` prefers it as the part's model. The checks still report the
+  package as lacking it (`files.bom`, `files.model`); a purchased part with one is shown, not
+  checked. One added model per part (Replace, Remove). Kept only for the open tab. See the README,
+  *Adding a model to a part*.
 - Not built yet: run storage and findings in Signoff ME (Phase 2 of
   `../me_fabcheck_exploration/report.md`).
 - The sidebar hides as in Signoff EE (2026-11-07): the corner button, the toolbar's ☰ or `[`, kept in
@@ -65,7 +73,7 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
    that the planted findings are as expected (the list is in `tests/test.html`).
 2. Run `python tools/sync_vendor.py --check`, then `python tools/stamp_version.py` (it covers
    `assets/vendor/` too).
-3. Open `tests/test.html` over http. It should show PASS (21 tests as of 2026-11-08). The demo
+3. Open `tests/test.html` over http. It should show PASS (22 tests as of 2026-11-08). The demo
    tests need the network. The last one compares Signoff PL's demo files with what the Send makes
    today, so it needs `signoff_pl` served next to this folder.
 4. For a real-file check, use `samples/`. It's git-ignored and holds NIST's public-domain PMI test

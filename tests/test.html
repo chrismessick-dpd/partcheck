@@ -186,6 +186,27 @@
       '2100410-031 files.bom error',
     ]);
   });
+  test('added models: a part and a purchased line get pictures, the checks still see the package', async () => {
+    const pk = PartcheckDemo.packages.find(p => p.id === 'enclosure');
+    const files = pk.files.map(f => ({ path: f.path, bytes: PC.util.b64ToBytes(f.b64) }));
+    const before = await PC.pkg.build(pk.name, files.map(f => Object.assign({}, f)));
+    const step = files.find(f => /011_B_front-cover\.step$/.test(f.path)).bytes;
+    const pkg = await PC.pkg.build(pk.name, files.concat(
+      { path: 'Added in Partcheck/LP_9999-77_C_supplier.step', bytes: step, forPart: '2100410-031', added: true },
+      { path: 'Added in Partcheck/screw.step', bytes: step, forPart: '9100022-004', added: true }));
+    await PC.analyze.analyze(pkg, () => {});
+    eq(pkg.sha256, before.sha256, 'added models stay out of the package hash');
+    eq(pkg.purchased.length, 0, 'the purchased line became a part');
+    const lp = pkg.parts.find(p => p.key === '2100410-031'), sc = pkg.parts.find(p => p.key === '9100022-004');
+    eq([!!lp.mesh, lp.model.added, lp.rev, !!sc.mesh, sc.process], [true, true, 'A', true, 'purchased']);
+    eq(fids(pkg), [
+      '2100410-011 dwg.signoff info',
+      '2100410-012 dwg.finish warn', '2100410-012 dwg.signoff info', '2100410-012 mat.match error', '2100410-012 rev.step info',
+      '2100410-031 files.bom error',
+    ]);
+    ok(/added here in Partcheck/.test(pkg.findings.find(f => f.part === '2100410-031').detail), 'the finding says a model was added');
+    eq(PC.send.sendable(pkg).map(p => p.key).sort(), ['2100410-011', '2100410-012', '2100410-031', '9100022-004']);
+  });
   test('demo bracket: stale flat pattern found', async () => {
     const pkg = await demo('bracket');
     const p = pkg.parts[0];

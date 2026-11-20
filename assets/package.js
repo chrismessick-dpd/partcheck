@@ -112,6 +112,9 @@
   }
 
   // Inputs → a package: { id, name, files, parts, bom, sha256 }. Parts are keyed by part number.
+  // An input with `forPart` (a part key or BOM part number) and `added: true` is a model added in
+  // Partcheck from a part's page, not one of the package's files: it joins that part whatever its
+  // name says, its name's part number and revision are ignored, and it stays out of the package hash.
   async function build(name, inputs, log) {
     const files = await expand(inputs, log);
     files.sort((a, b) => a.path.localeCompare(b.path));
@@ -121,6 +124,7 @@
       f.size = f.bytes.length;
       f.sha256 = await U.sha256(f.bytes);
       Object.assign(f, kindOf(f.name), parseName(f.path));
+      if (f.added) { f.pn = null; f.rev = null; continue; }
       packSha += f.path + '\t' + f.sha256 + '\n';
     }
     const pkg = { id: 'k' + Date.now().toString(36), name, at: new Date().toISOString(), files, parts: [], bom: null, boms: [] };
@@ -139,6 +143,7 @@
     const loose = [];
     for (const f of files) {
       if (f.kind === 'bom' || f.kind === 'other' || f.kind === 'image' || f.kind === 'doc') continue;
+      if (f.added && f.forPart) { part(f.forPart).files.push(f); continue; }
       // the assembly's own files (the BOM's part number) stay package-level unless they hold a model
       if (f.pn && bomOwners.has(f.pn) && f.kind !== 'model' && f.kind !== 'mesh') continue;
       if (f.pn) part(f.pn).files.push(f); else loose.push(f);

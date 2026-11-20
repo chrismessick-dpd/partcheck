@@ -25,7 +25,7 @@ never shipped and doesn't match what PL reads).
 - **Engine:**
   - `workspace.js` `checkerDirs` and `moveChecker` replace `moveFabcheck`.
   - `app.js` `loadPicture` shows the hero part's views, and only links Fabcheck runs.
-- **Tests:** Partcheck 21 (Send against PL's fake GitHub, and the demo files current), PL 212,
+- **Tests:** Partcheck 22 (Send against PL's fake GitHub, and the demo files current), PL 212,
   EE 199, ME 62, FW 66. PL's `tests/fake-hub.js` answers `GET /repos/<owner>/<repo>` for the
   write probe.
 - **Not tried live:** a real Send needs Chris's token in the page.

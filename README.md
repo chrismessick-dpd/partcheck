@@ -69,6 +69,18 @@ Name files `<part number>_<rev>_<description>.<ext>`, for example
 `2100410-011_B_front-cover.step`. Many STEP exports carry no revision, so the file name is often
 the only thing tying a model to its drawing.
 
+## Adding a model to a part
+
+A part with no model, or one whose model didn't open, has *Add a model…* on its page, and each
+line under *Purchased parts in the BOM* has one too. Pick a STEP, IGES, or STL (a supplier's model
+of a bought part, say). Partcheck reads the package again with that file tied to the part, whatever
+its name says, so the part gets its 3D view, mass, pictures, and a place in *Send to Signoff ME…*.
+
+The file is added in Partcheck only. The package you opened doesn't change, the package hash
+leaves it out, and the checks still report that the package has no model for a fabricated part.
+The part's page and the Files tab mark it *added in Partcheck*, with Replace and Remove. A
+purchased part with a model is shown but not checked. Nothing keeps it after the tab closes.
+
 ## Running it
 
 It needs http, because the STEP reader runs in a worker and a worker can't start from `file://`.

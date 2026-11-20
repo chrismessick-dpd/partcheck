@@ -41,11 +41,13 @@
       const D = p.drawing, F = k => (D && D.fields[k] ? D.fields[k].value : '');
       // files
       if (!fab(p)) continue;
-      if (p.bom && !p.files.length) {
-        R('files.bom', p, 'error', 'In the BOM, but no files', 'BOM line ' + p.label + ' (' + (p.bom.desc || p.bom.type || 'fabricated') + ', rev ' + (p.bom.rev || '?') + ') has no model or drawing in the package.');
+      // A model added in Partcheck shows the part, but it isn't in the package that goes out.
+      const added = p.model && p.model.added ? ' A model was added here in Partcheck for previews; the package itself still has none.' : '';
+      if (p.bom && !p.files.some(f => !f.added)) {
+        R('files.bom', p, 'error', 'In the BOM, but no files', 'BOM line ' + p.label + ' (' + (p.bom.desc || p.bom.type || 'fabricated') + ', rev ' + (p.bom.rev || '?') + ') has no model or drawing in the package.' + added);
         continue;
       }
-      if (!p.model) R('files.model', p, 'error', 'No 3D model', (p.files.some(f => f.kind === 'native') ? 'Only a native CAD file is here. Export a STEP from the CAD tool.' : 'Add a STEP for ' + p.label + '.'));
+      if (!p.model || added) R('files.model', p, 'error', 'No 3D model in the package', (p.files.some(f => f.kind === 'native') ? 'Only a native CAD file is here. Export a STEP from the CAD tool.' : 'Add a STEP for ' + p.label + '.') + added);
       else R('files.model', p, 'ok', p.model.label + ': ' + p.model.name);
       if (!p.drawingFile) R('files.drawing', p, p.process === 'printed' ? 'info' : 'error', 'No drawing', p.process === 'printed' ? 'Fine for a print from the model alone, if no fit or tolerance matters.' : 'The vendor will apply its own default tolerances, and material and finish are unstated.');
       else R('files.drawing', p, 'ok', p.drawingFile.name);
