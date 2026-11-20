@@ -1,6 +1,6 @@
 # Send to Signoff ME: part pictures and models for Signoff PL
 
-**Status: built on branch `me-send` (2026-11-08), not committed or merged.** Chris took the proposed
+**Status: built on branch `me-send` (2026-11-08), merged to `main` in every repo 2026-11-19.** Chris took the proposed
 default for every decision below except 7: the demo is rebuilt in this format, so it always shows
 what the real Send stores. This replaces `preview-format.md` (the `signoff-preview/1` proposal, which
 never shipped and doesn't match what PL reads).

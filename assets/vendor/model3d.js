@@ -5,7 +5,7 @@
 
    readStep(bytes)          OpenCascade (occt-import-js, pinned) in assets/occt-worker.js → mesh
    simplify(mesh, maxTris)  vertex clustering until the mesh has at most maxTris triangles
-   encode(mesh) / decode()  "PLM1": 16-bit positions over the bounding box, indices, a color and a
+   encode(mesh) / decode()  "PLM1": 16-bit positions over the bounding box, indices, a color, and a
                             CAD face per triangle; gzipped
    render(mesh, opts)       a small z-buffer renderer (no WebGL, no libraries) → ImageData
    renderScene(objs, cam)   several placed parts, board pictures as textures, and which part and
@@ -183,7 +183,7 @@
     { key: 'right', label: 'Right', az: -90 * D, el: 0 }
   ];
 
-  // The eye: right, up and toward-the-eye directions in world coordinates.
+  // The eye: right, up, and toward-the-eye directions in world coordinates.
   function camera(az, el) {
     var ca = Math.cos(az), sa = Math.sin(az), ce = Math.cos(el), se = Math.sin(el);
     return { r: [ca, -sa, 0], u: [sa * se, ca * se, ce], f: [-sa * ce, -ca * ce, se] };
@@ -232,6 +232,7 @@
     L = L.map(function (c) { return c / ll; });
     var q = [0, 0, 0], p = [0, 0, 0];
     objs.forEach(function (o, oi) {
+      if (o.hidden) return;   // hidden in the view: not drawn, never picked, keeps its index
       var m = o.mesh, nv = m.pos.length / 3, sx = new Float32Array(nv), sy = new Float32Array(nv), sz = new Float32Array(nv);
       for (var v = 0; v < nv; v++) {
         p[0] = m.pos[v * 3]; p[1] = m.pos[v * 3 + 1]; p[2] = m.pos[v * 3 + 2]; place(o, p, q);
@@ -323,11 +324,12 @@
   }
 
   // One part, fitted to the picture. opts: { w, h, az, el, ss (default 2), zoom (default 1),
-  // fit and box (a viewer keeps the part centered and the scale steady as it turns) } → ImageData
-  // with a transparent background.
+  // fit and box (a viewer keeps the part centered and the scale steady as it turns), c (with fit: the
+  // world point at the center, for panning; default the box's center) } → ImageData with a
+  // transparent background.
   function render(mesh, opts) {
     var ss = opts.ss || 2, W = opts.w * ss, H = opts.h * ss, cam = camera(opts.az, opts.el);
-    var box = opts.box || bbox(mesh.pos), c = [(box.lo[0] + box.hi[0]) / 2, (box.lo[1] + box.hi[1]) / 2, (box.lo[2] + box.hi[2]) / 2];
+    var box = opts.box || bbox(mesh.pos), c = (opts.fit && opts.c) || [(box.lo[0] + box.hi[0]) / 2, (box.lo[1] + box.hi[1]) / 2, (box.lo[2] + box.hi[2]) / 2];
     var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, q = [0, 0, 0];
     for (var i = 0; i < mesh.pos.length; i += 3) {
       q[0] = mesh.pos[i] - c[0]; q[1] = mesh.pos[i + 1] - c[1]; q[2] = mesh.pos[i + 2] - c[2];
@@ -364,6 +366,11 @@
       unproject: function (dx, dy) {
         return [0, 1, 2].map(function (i) { return (cm.r[i] * dx - cm.u[i] * dy) * k; });
       },
+      // The world point under canvas px (x, y) at a pick()'s depth: the inverse of project.
+      point: function (x, y, depth) {
+        var a = view.cx + (x * ss - W / 2) / view.scale, b = view.cy - (y * ss - H / 2) / view.scale;
+        return [0, 1, 2].map(function (i) { return cm.r[i] * a + cm.u[i] * b + cm.f[i] * depth; });
+      },
       cam: cm
     };
   }
@@ -375,28 +382,108 @@
     return new Promise(function (resolve, reject) { c.toBlob(function (b) { if (b) resolve(b); else reject(new Error('Couldn’t make the picture')); }, 'image/png'); });
   }
 
-  // A rotatable view in a canvas: drag to turn, wheel to zoom, double-click to reset.
+  // Turning by a drag of dx, dy CSS px, shared by the viewer and Exploded. The part follows the
+  // pointer as if held: drag right and its near side moves right, drag down and its top comes toward
+  // you. (Until 2026-11-09 a drag to the right swung the eye right, so the part turned against the
+  // pointer; Chris found it backward.)
+  var TURN = 0.01;   // radians per px
+  function orbit(az, el, dx, dy) {
+    return { az: az + dx * TURN, el: Math.max(-Math.PI / 2, Math.min(Math.PI / 2, el + dy * TURN)) };
+  }
+
+  // How a canvas of w × h device px is drawn: quick frames while it moves, a sharp one when it stops.
+  // The renderer's time goes with pixels (about 30 ms a megapixel at 60k triangles, measured
+  // 2026-11-09), so a big canvas draws fewer and CSS stretches them. → { k (backing-store scale), ss }
+  var QUICK_PX = 1e6, SHARP_PX = 8e6;
+  function budget(w, h, sharp) {
+    var px = Math.max(1, w * h);
+    if (!sharp) return { k: Math.min(1, Math.sqrt(QUICK_PX / px)), ss: 1 };
+    var k2 = Math.min(1, Math.sqrt(SHARP_PX / (4 * px)));
+    return k2 >= 0.7 ? { k: k2, ss: 2 } : { k: Math.min(1, Math.sqrt(SHARP_PX / px)), ss: 1 };
+  }
+
+  // A rotatable view in a canvas: drag to turn, Shift-, right- or middle-drag to pan, wheel to zoom
+  // about the pointer, double-click to reset. It redraws whenever the canvas changes size (so a canvas
+  // laid out after the mesh arrives isn't left blank) and stops once the canvas leaves the page.
+  // Returns a handle: get() and set(state) with state { az, el, zoom, c (world point at the center) },
+  // view(az, el) (turn and fit), fit(), reset(), turn(daz, del) (radians, as a drag would), zoomBy(f),
+  // and destroy().
   function viewer(canvas, mesh) {
     var box = bbox(mesh.pos), fit = Math.hypot(box.size[0], box.size[1], box.size[2]) || 1;
-    var st = { az: VIEWS[0].az, el: VIEWS[0].el, zoom: 1 }, drag = null, raf = 0, idle = 0;
-    function draw(ss) {
-      var dpr = Math.min(2, window.devicePixelRatio || 1), w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
-      if (!w || !h) return;
-      canvas.width = w; canvas.height = h;
-      canvas.getContext('2d').putImageData(render(mesh, { w: w, h: h, az: st.az, el: st.el, zoom: st.zoom * 1.25, fit: fit, box: box, ss: ss }), 0, 0);
+    var mid = [0, 1, 2].map(function (i) { return (box.lo[i] + box.hi[i]) / 2; }), ZOOM = 1.25;
+    function home() { return { az: VIEWS[0].az, el: VIEWS[0].el, zoom: 1, c: mid.slice() }; }
+    function zoomed(z) { return Math.max(0.4, Math.min(20, z)); }
+    var st = home(), drag = null, raf = 0, idle = 0, ro = null, dead = false, size = '';
+    function pxPerMm() { return Math.min(canvas.clientWidth, canvas.clientHeight) * 0.88 / fit * st.zoom * ZOOM; }
+    function draw(sharp) {
+      if (dead) return;
+      if (!canvas.isConnected) { destroy(); return; }
+      var dpr = Math.min(2, window.devicePixelRatio || 1), cw = canvas.clientWidth * dpr, ch = canvas.clientHeight * dpr;
+      size = canvas.clientWidth + 'x' + canvas.clientHeight;
+      if (!cw || !ch) return;
+      var b = budget(cw, ch, sharp), w = Math.max(1, Math.round(cw * b.k)), h = Math.max(1, Math.round(ch * b.k));
+      if (canvas.width !== w) canvas.width = w;
+      if (canvas.height !== h) canvas.height = h;
+      canvas.getContext('2d').putImageData(render(mesh, { w: w, h: h, az: st.az, el: st.el, zoom: st.zoom * ZOOM, fit: fit, box: box, c: st.c, ss: b.ss }), 0, 0);
     }
-    function later() { cancelAnimationFrame(raf); raf = requestAnimationFrame(function () { draw(1); }); clearTimeout(idle); idle = setTimeout(function () { draw(2); }, 220); }
-    canvas.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, az: st.az, el: st.el }; canvas.setPointerCapture(e.pointerId); });
+    function later() {
+      if (dead) return;
+      cancelAnimationFrame(raf); raf = requestAnimationFrame(function () { draw(false); });
+      clearTimeout(idle); idle = setTimeout(function () { draw(true); }, 220);
+    }
+    function get() { return { az: st.az, el: st.el, zoom: st.zoom, c: st.c.slice() }; }
+    function destroy() { dead = true; drag = null; cancelAnimationFrame(raf); clearTimeout(idle); if (ro) ro.disconnect(); }
+    canvas.addEventListener('pointerdown', function (e) {
+      if (e.button > 2) return;
+      if (e.button === 1) e.preventDefault();   // no autoscroll
+      drag = { x: e.clientX, y: e.clientY, pan: e.button > 0 || e.shiftKey, st: get() };
+      canvas.setPointerCapture(e.pointerId);
+    });
     canvas.addEventListener('pointermove', function (e) {
       if (!drag) return;
-      st.az = drag.az - (e.clientX - drag.x) * 0.01;
-      st.el = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, drag.el + (e.clientY - drag.y) * 0.01));
+      var dx = e.clientX - drag.x, dy = e.clientY - drag.y, s0 = drag.st;
+      if (drag.pan) {
+        var cm = camera(s0.az, s0.el), k = 1 / pxPerMm();
+        st.c = [0, 1, 2].map(function (i) { return s0.c[i] - (cm.r[i] * dx - cm.u[i] * dy) * k; });
+      } else {
+        var o = orbit(s0.az, s0.el, dx, dy);
+        st.az = o.az; st.el = o.el;
+      }
       later();
     });
     canvas.addEventListener('pointerup', function () { drag = null; });
-    canvas.addEventListener('wheel', function (e) { e.preventDefault(); st.zoom = Math.max(0.4, Math.min(8, st.zoom * Math.exp(-e.deltaY * 0.0015))); later(); }, { passive: false });
-    canvas.addEventListener('dblclick', function () { st = { az: VIEWS[0].az, el: VIEWS[0].el, zoom: 1 }; later(); });
-    draw(2);
+    canvas.addEventListener('pointercancel', function () { drag = null; });
+    canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    // The point under the pointer stays put.
+    canvas.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var z = zoomed(st.zoom * Math.exp(-e.deltaY * 0.0015)), f = z / st.zoom;
+      if (f === 1) return;
+      var r = canvas.getBoundingClientRect(), ox = e.clientX - r.left - r.width / 2, oy = e.clientY - r.top - r.height / 2;
+      var cm = camera(st.az, st.el), k = (1 - 1 / f) / pxPerMm();
+      st.c = [0, 1, 2].map(function (i) { return st.c[i] + (cm.r[i] * ox - cm.u[i] * oy) * k; });
+      st.zoom = z;
+      later();
+    }, { passive: false });
+    canvas.addEventListener('dblclick', function () { st = home(); later(); });
+    if (window.ResizeObserver) {
+      ro = new ResizeObserver(function () {
+        if (!canvas.isConnected) destroy();
+        else if (canvas.clientWidth + 'x' + canvas.clientHeight !== size) later();
+      });
+      ro.observe(canvas);
+    }
+    draw(true);
+    return {
+      get: get,
+      set: function (s) { st = { az: s.az, el: s.el, zoom: zoomed(s.zoom || 1), c: (s.c || mid).slice() }; later(); },
+      view: function (az, el) { st = { az: az, el: el, zoom: 1, c: mid.slice() }; later(); },
+      fit: function () { st.zoom = 1; st.c = mid.slice(); later(); },
+      reset: function () { st = home(); later(); },
+      turn: function (daz, del) { var o = orbit(st.az, st.el, daz / TURN, del / TURN); st.az = o.az; st.el = o.el; later(); },
+      zoomBy: function (f) { st.zoom = zoomed(st.zoom * f); later(); },
+      destroy: destroy
+    };
   }
 
   // ── Arranging ────────────────────────────────────────────
@@ -589,7 +676,7 @@
   }
 
   S.model3d = { VIEWS: VIEWS, MAX_TRIS: MAX_TRIS, STEP_CAP: STEP_CAP, readStep: readStep, fromOcct: fromOcct, bbox: bbox, simplify: simplify,
-    encode: encode, decode: decode, gzip: gzip, render: render, png: png, viewer: viewer, prepare: prepare,
+    encode: encode, decode: decode, gzip: gzip, render: render, png: png, viewer: viewer, orbit: orbit, budget: budget, prepare: prepare,
     renderScene: renderScene, rotation: rotation, place: place, turn: turn, placedBox: placedBox, features: features, alignMove: alignMove,
     slab: slab, texture: texture };
 })(window.Signoff = window.Signoff || {});
