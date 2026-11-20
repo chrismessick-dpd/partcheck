@@ -136,7 +136,7 @@
     return u === 'kg' ? v * 1000 : u === 'g' ? v : u.startsWith('lb') ? v * 453.592 : v * 28.3495;
   }
 
-  // ── DXF (R12 and later ENTITIES): lines, arcs, circles, polylines and text ──
+  // ── DXF (R12 and later ENTITIES): lines, arcs, circles, polylines, and text ──
   function readDxf(text) {
     const lines = text.split(/\r?\n/);
     const ents = [];

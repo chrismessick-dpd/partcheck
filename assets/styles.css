@@ -4,7 +4,8 @@
 .pc-num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pc-narrow { max-width: 760px; line-height: 1.5; }
 .pc-lede { color: var(--text-2); font-size: 15.5px; line-height: 1.5; max-width: 780px; margin: 4px 0 22px; }
-.pc-version { flex: 1; font-size: 11px; padding-left: 6px; }
+/* The build, above the sidebar foot (the suite's: signoff/assets/sidefoot.js). */
+.pc-version { font-size: 11px; padding: 2px 22px 6px; }
 .pc-wide { max-width: 1280px; }
 .pc-link { border: none; background: none; padding: 0; color: var(--accent); font: inherit; cursor: pointer; }
 .pc-link:hover { text-decoration: underline; }

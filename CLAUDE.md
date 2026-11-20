@@ -8,7 +8,7 @@ mechanical fab package (STEP, drawing PDFs, DXF, BOM CSV) and shows:
 - package checks: do the files agree?
 - draft and wall-thickness color maps.
 
-It also exports previews and converts STEP to STL, OBJ, GLB or PNG. Read `README.md` first. Also
+It also exports previews and converts STEP to STL, OBJ, GLB, or PNG. Read `README.md` first. Also
 read `../CLAUDE.md`, which covers the suite's hard rules.
 
 ## Status (2026-11-01)
@@ -17,7 +17,7 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
 - Repo: `chrismessick-dpd/partcheck` (public), created 2026-11-01. Pages serves it from `main`
   (on since 2026-11-02). The hub links to it as a prototype.
 - Commit or push only when Chris asks.
-- **Send to Signoff ME (2026-11-08, branch `me-send`, not committed):** stores each part's four
+- **Send to Signoff ME (2026-11-08; merged to `main` 2026-11-19):** stores each part's four
   views and a PLM1 mesh in `partcheck/<review>/preview/` in the ME review's repo, for Signoff ME's
   overview and Signoff PL's tiles and Exploded. See `docs/send-to-signoff-me.md`, which lists what
   was built and how the demo files are made (`tools/pl_demo.html`).
@@ -26,7 +26,7 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
   - The vendored files are in `assets/vendor/` (`python tools/sync_vendor.py`; PL's `model3d.js` is
     one of them). Re-run it when the engine's `model.js` or `github.js`, or PL's `model3d.js`,
     changes.
-- **Add a model (2026-11-08, branch `me-send`, not committed):** *Add a model…* on a part with no
+- **Add a model (2026-11-08; merged to `main` 2026-11-19):** *Add a model…* on a part with no
   model (or one that didn't open) and on each purchased BOM line. The package is rebuilt with the
   file as an input with `forPart` and `added: true` (`app.js` `withModel`, `package.js` `build`):
   it joins that part, its name's part number and revision are ignored, it's left out of
@@ -36,7 +36,7 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
   *Adding a model to a part*.
 - Not built yet: run storage and findings in Signoff ME (Phase 2 of
   `../me_fabcheck_exploration/report.md`).
-- The sidebar hides as in Signoff EE (2026-11-07): the corner button, the toolbar's ☰ or `[`, kept in
+- The sidebar hides as in Signoff EE (2026-11-07): the corner button, the toolbar's ☰, or `[`, kept in
   `partcheck.v1.sideCollapsed`; on phones it is a drawer with a scrim.
 - Chris noted that real geometry DFM needs Python. He wants ME input before the checks go further.
 
@@ -64,6 +64,7 @@ read `../CLAUDE.md`, which covers the suite's hard rules.
   ME check ids it supports (`related`); keep those ids real (`../me_design_review/templates`).
 - **American English, metric first** ("1.2 mm (47.2 mil)"), using `PC.util.fmtLen` and the other
   `fmt*` helpers.
+- **Serial comma** (Chris, 2026-11-08): use the Oxford comma in every list of three or more, in UI text, docs, demo data, checklists, and commit messages: "A, B, and C". Never change check ids or data keys to fit it.
 - `assets/suite.css` is copied from EE. Re-copy it with `python tools/sync_suite_css.py`, and never
   edit it here.
 

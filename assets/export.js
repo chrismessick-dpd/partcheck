@@ -78,7 +78,7 @@
     stl: { label: 'STL', ext: 'stl', make: stl, what: 'Binary STL in mm, for 3D printing and slicers.' },
     obj: { label: 'OBJ', ext: 'obj', make: obj, what: 'Wavefront OBJ in mm, for renderers and Blender.' },
     glb: { label: 'GLB', ext: 'glb', make: glb, what: 'glTF binary (meters, Y-up). Opens in PowerPoint (Insert > 3D Model), Windows 3D Viewer and web viewers.' },
-    png: { label: 'PNG views', ext: 'png', make: p => png(PC.viewer.viewSheet(p, 1280, 960)), what: 'Iso, top, front and right views on one 1280 × 960 image.' },
+    png: { label: 'PNG views', ext: 'png', make: p => png(PC.viewer.viewSheet(p, 1280, 960)), what: 'Iso, top, front, and right views on one 1280 × 960 image.' },
   };
 
   // ── Preview pack: what Signoff PL would read (see docs/preview-format.md) ──
