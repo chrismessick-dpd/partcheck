@@ -6,6 +6,7 @@ for a header.
 
 - assets/vendor/model.js     Signoff engine model (ee_design_review; GitHubStore needs it)
 - assets/vendor/github.js    Signoff engine GitHub storage: putFiles / listTree / blobBytes
+- assets/vendor/localstore.js  Signoff engine local store (IndexedDB), where Signoff ME keeps its reviews
 - assets/vendor/model3d.js   Signoff PL's mesh format (PLM1) and renderer (signoff_pl), so what
                              Partcheck stores is what PL reads and its pictures look like PL's
                              (docs/send-to-signoff-me.md)
@@ -19,6 +20,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 FILES = [
     ("ee_design_review", "Signoff EE", "assets/model.js", "assets/vendor/model.js"),
     ("ee_design_review", "Signoff EE", "assets/github.js", "assets/vendor/github.js"),
+    ("ee_design_review", "Signoff EE", "assets/localstore.js", "assets/vendor/localstore.js"),
     ("signoff_pl", "Signoff PL", "assets/model3d.js", "assets/vendor/model3d.js"),
 ]
 

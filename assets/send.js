@@ -28,6 +28,18 @@
   const load = (k, d, n) => { try { const v = localStorage.getItem((n || ns()) + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
   const token = () => { if (testing) return testing.token; try { return sessionStorage.getItem('signoff.token') || localStorage.getItem('signoff.token') || ''; } catch (e) { return ''; } };
   const json = o => JSON.stringify(o, null, 1);
+  // Signoff ME keeps its reviews and their home repos in IndexedDB (its localstore.js, vendored here)
+  // since 2026-11-19; localStorage still has them in a browser where ME hasn't opened since, so both
+  // are read, the store winning. ready() reads the store; the Send window waits for it.
+  const local = {};   // ns -> { projects, homes }
+  function ready() {
+    const n = ns();
+    if (testing || !window.SignoffLocal) return Promise.resolve();
+    return window.SignoffLocal.store(n).load().then(d => {
+      if (d && d.backend === 'idb') local[n] = { projects: d.projects || {}, homes: d.homes || {} };
+    }, () => { /* the store couldn't open: localStorage alone */ });
+  }
+  const kept = k => Object.assign({}, load(k, {}) || {}, (local[ns()] || {})[k] || {});
 
   // Sign in the way the Signoff tools do: one key, in this tab only or remembered.
   const cleanToken = t => String(t || '').replace(/[\s​-‍⁠﻿]/g, '');
@@ -46,7 +58,7 @@
   // ── Which review, and where it lives ──
   // Signoff ME's reviews in this browser (its working copy), newest first.
   function reviews() {
-    const all = load('projects', {}) || {};
+    const all = kept('projects');
     const list = Object.keys(all).map(k => all[k]).filter(p => p && p.id && p.meta && !p.meta.archived && !p.meta.deleted)
       .map(p => ({ id: p.id, name: p.meta.name || p.id, number: p.meta.board || '', project: p.meta.project || '', at: p.meta.updatedAt || '' }))
       .sort((a, b) => b.at.localeCompare(a.at));
@@ -76,7 +88,7 @@
 
   // The review's home repo and its preview folder, as Signoff ME decides them.
   function home(reviewId) {
-    const s = load('settings', {}) || {}, roster = load('roster', {}) || {}, homes = load('homes', {}) || {};
+    const s = load('settings', {}) || {}, roster = load('roster', {}) || {}, homes = kept('homes');
     const owner = s.owner || OWNER, dataRepo = s.dataRepo || DATA_REPO;
     const shared = roster.shared && roster.shared[reviewId] && roster.shared[reviewId].repo;
     const repo = shared || homes[reviewId] || owner + '/' + dataRepo;
@@ -284,7 +296,7 @@
   }
 
   PC.send = {
-    signIn, reviews, suggest, home, readiness, probe, store, build, named, slug, keysFor, sendable, defaultHero, demoPreviews, demoBundle, gitSha,
+    signIn, ready, reviews, suggest, home, readiness, probe, store, build, named, slug, keysFor, sendable, defaultHero, demoPreviews, demoBundle, gitSha,
     hasToken: () => !!token(), DEMO_REVIEWS, VIEW_W, VIEW_H,
     _test: t => { testing = t ? { token: t.token, ns: t.ns } : null; fetchImpl = (t && t.fetch) || null; probes.clear(); },
   };
